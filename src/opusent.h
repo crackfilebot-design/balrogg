@@ -10,7 +10,7 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program. If not, see <http://www.gnu.org/licenses/>.  */
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #ifndef BLR_OPUSENT_H
 #define BLR_OPUSENT_H
@@ -92,13 +92,13 @@ enum {
 
 /*  Operation kinds, one per entry point libopus offers.  */
 enum {
-  OP_ICDF = 0,  /*  ec_dec_icdf     symbol index, 8-bit inverse cdf   */
+  OP_ICDF = 0,  /*  ec_dec_icdf     symbol index, 8-bit inverse cdf  */
   OP_ICDF16,    /*  ec_dec_icdf16   symbol index, 16-bit inverse cdf  */
-  OP_LOGP,      /*  ec_dec_bit_logp one bit, P(1) = 2^-logp           */
-  OP_BITS,      /*  ec_dec_bits     raw bits, packed from the end     */
-  OP_UINT,      /*  ec_dec_uint     uniform in [0, nsym)              */
-  OP_LAPLACE,   /*  ec_laplace_decode, coarse energy                  */
-  OP_THETA,     /*  bands.c band angle, integer in [0, qn]            */
+  OP_LOGP,      /*  ec_dec_bit_logp one bit, P(1) = 2^-logp  */
+  OP_BITS,      /*  ec_dec_bits     raw bits, packed from the end  */
+  OP_UINT,      /*  ec_dec_uint     uniform in [0, nsym)  */
+  OP_LAPLACE,   /*  ec_laplace_decode, coarse energy  */
+  OP_THETA,     /*  bands.c band angle, integer in [0, qn]  */
   OP_NKINDS
 };
 

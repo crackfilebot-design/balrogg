@@ -1,4 +1,4 @@
-/*  Shared libFuzzer helpers. BLR_FUZZ catches normal rejection with longjmp.  */
+/*  Shared libFuzzer helpers.  BLR_FUZZ catches normal rejection with longjmp.  */
 
 #ifndef BLR_HARNESS_H
 #define BLR_HARNESS_H
@@ -72,7 +72,7 @@ static void fz_same(const char * a, const char * b) {
   (setjmp(blr_fuzz_jmp) ? (blr_fuzz_armed = 0, 0)                             \
                         : (blr_fuzz_armed = 1, (body), blr_fuzz_armed = 0, 1))
 
-/*  Packet lists repeat a little-endian u16 length and payload. Zero or
+/*  Packet lists repeat a little-endian u16 length and payload.  Zero or
     truncated records end the list.  */
 
 typedef struct { const u8 * p;  sz n; } fz_pkt;

@@ -10,7 +10,7 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program. If not, see <http://www.gnu.org/licenses/>.  */
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #ifndef BLR_VORBIS_H
 #define BLR_VORBIS_H
@@ -60,8 +60,8 @@ enum {
 #define F_DLTSG   54              /*  lookup: sign of the delta  */
 #define F_NSLOT   56
 
-#define VB_CBANK  8               /*  comment byte tree: banks ...  */
-#define VB_CSIZE  256             /*  ... of 256 nodes each  */
+#define VB_TBANK  8               /*  audio tail byte tree: banks ...  */
+#define VB_TSIZE  256             /*  ... of 256 nodes each  */
 
 /*  Audio packets use separate type, mode, and payload streams.  */
 
@@ -80,7 +80,7 @@ typedef struct {
   u8 look;                    /*  lookup type: 0 none, 1 the VQ grid  */
   u8 * len;                   /*  codeword length per entry, 0 = unused  */
   u32 * code;                 /*  canonical codeword, most significant first  */
-  i32 * fast;                /* lazily built 8-bit prefix lookup */
+  i32 * fast;                /*  lazily built 8-bit prefix lookup  */
   u8 * fastbits;
   i32 * nd;                   /*  decode tree: two children per node, a
                                   negative child is -(entry + 1)  */
@@ -201,8 +201,8 @@ typedef struct {
   model m[M_N];
   u16 f[F_NSLOT];
   u8 fc[F_NSLOT];             /*  ... their counts, for the adaptive coder  */
-  u16 * cmt;                  /*  VB_CBANK * VB_CSIZE comment-byte nodes  */
-  u8 * cmtc;
+  u16 * tailp;                /*  VB_TBANK * VB_TSIZE audio tail nodes  */
+  u8 * tailc;
   u32 pb;                     /*  last codebook index  */
   vb_info i;
   u16 am[VB_MBANK * VB_MSTEP];  /*  mode tree, one bank per context  */
@@ -260,7 +260,7 @@ void vb_free(vb_ctx * v);
 void vb_link(vb_ctx * v);
 /*  Age unused model slots at the end of a link.  */
 void vb_endlink(vb_ctx * v);
-/*  Reset probabilities and the codebook pool for non-solid mode. Keep parsed
+/*  Reset probabilities and the codebook pool for non-solid mode.  Keep parsed
     setups for header references.  */
 void vb_reset(vb_ctx * v);
 /*  Select the zero-based setup used by repeated header pages.  */
@@ -270,7 +270,7 @@ void vb_use(vb_ctx * v, u32 n);
 void vb_hdr_enc(vb_ctx * v, rc_enc * e, int which, const u8 * pkt, sz len);
 void vb_hdr_dec(vb_ctx * v, rc_dec * d, int which, u8 * pkt, sz len);
 
-/*  Process one audio packet across bulk, mode, and type streams. Return the
+/*  Process one audio packet across bulk, mode, and type streams.  Return the
     consumed bits before byte padding.  */
 sz vb_aud_enc(vb_ctx * v, rc_enc * eb, rc_enc * em, rc_enc * ep,
               const u8 * pkt, sz len, int cont);

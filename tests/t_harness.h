@@ -10,7 +10,7 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program. If not, see <http://www.gnu.org/licenses/>.  */
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 /*  Shared test harness.  */
 
@@ -78,6 +78,7 @@ typedef struct { u32 s; } xt_rng;
 void xt_seed(xt_rng * r, u32 seed);
 u32 xt_next(xt_rng * r, u32 n);
 
+void xt_run_comments(void);
 void xt_run_unit(void);
 void xt_run_layers(void);
 void xt_run_files(void);

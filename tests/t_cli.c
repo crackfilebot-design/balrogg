@@ -10,13 +10,14 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program. If not, see <http://www.gnu.org/licenses/>.  */
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 /*  Command-line and regression tests.  */
 
 #include "t_harness.h"
 #include "ogg.h"
 #include "archive.h"
+#include "vorbis.h"
 
 static const struct regression {
   const char * name;
@@ -194,7 +195,7 @@ static void t_batch(void) {
 }
 
 /*  Peeling and padding are legal Vorbis packet boundaries, including in the
-    middle of a page. Later packets must retain identical adaptive state.  */
+    middle of a page.  Later packets must retain identical adaptive state.  */
 static void t_packet_edges(void) {
   const char * input = xt_tmp("edges.ogg"), * arc = xt_tmp("edges.blr");
   const char * out = xt_tmp("edges.out"), * log = xt_tmp("edges.log");
@@ -303,6 +304,22 @@ static void t_archive_version(void) {
       CHECK(xt_run(args, log) == BLR_EXIT_REFUSED &&
             xt_file_contains(log, "unsupported archive version"),
             "codec %d rejects version %d", i, v));
+    data[ARC_MAGLEN] = ARC_VER;
+    { archive a;
+      arc_parse(&a, data, n);
+      for (j = 1; j <= 3; j++) {
+        sz len;
+        u8 * image;
+        if (!i && j == VB_TUNE_LEN) continue;
+        a.ntune = (u8) j;
+        memset(a.tune, 0, sizeof a.tune);
+        image = arc_emit(&a, &len);  spew(bad, image, len);  free(image);
+        sprintf(args, "d \"%s\" \"%s\"", bad, out);
+        CHECK(xt_run(args, log) == BLR_EXIT_REFUSED && xt_file_contains(log, "tune"),
+              "codec %d rejects unsupported tune length %d", i, j);
+      }
+      arc_free(&a);
+    }
     free(data));
   xt_unlink(arc);  xt_unlink(bad);  xt_unlink(out);  xt_unlink(log);
 }
@@ -473,7 +490,7 @@ static void t_constructed(void) {
   free(o.b);
 
   /*  A padded audio packet spans a full page, followed by a zero- or one-byte
-      closing fragment and ordinary audio. Exercise both continuation forms.  */
+      closing fragment and ordinary audio.  Exercise both continuation forms.  */
   Fi(2,
     int inserted = 0;
     u8 * pad = xcalloc(OGG_MAXSEG * OGG_MAXSEG, 1);
@@ -514,8 +531,8 @@ static void t_constructed(void) {
   xt_unlink(log);  xt_unlink(in);  xt_unlink(arc);  xt_unlink(out);
 }
 
-/* Valid encoder choices outside the original model alphabets. Long Vorbis
-   runs check compression; changed Opus packets precede ordinary packets. */
+/*  Valid encoder choices outside the original model alphabets.  Long Vorbis
+    runs check compression; changed Opus packets precede ordinary packets.  */
 static void t_codec_choices(void) {
   static const char * const floors[] = { "flooralt.ogg", "floorhi.ogg" };
   const char * input = xt_tmp("edges.ogg"), * arc = xt_tmp("edges.blr");
@@ -536,7 +553,7 @@ static void t_codec_choices(void) {
           int i, j;
           CHECK(p.plen[0] == sizeof packet, "three-byte floor fixture");
           memcpy(packet, src, sizeof packet);
-          if (variant < 0) packet[2] &= (u8) ~12; /* canonical master symbol */
+          if (variant < 0) packet[2] &= (u8) ~12; /*  canonical master symbol  */
           Fi(200, memcpy(body + 3 * i, packet, 3));
           p.np = 200;
           Fi(p.np, p.plen[i] = 3);
@@ -565,8 +582,8 @@ static void t_codec_choices(void) {
           p.plen[0] = (u32) n;  src = body;  changed = 1;
         } else if (variant >= 5 && p.seq == 2) {
           sz old = p.plen[0], n, extra, nhdr = 2, i;
-          /* One frame, followed by RFC 6716 code-3 padding. Each 255 in
-             the padding length contributes 254 trailing padding bytes. */
+          /*  One frame, followed by RFC 6716 code-3 padding.  Each 255 in
+              the padding length contributes 254 trailing padding bytes.  */
           CHECK(p.np > 1 && (src[0] & 3) == 0, "single-frame Opus fixture");
           n = variant == 8 ? 61440 : old + 2 + (sz) (variant + 6) * 255;
           extra = n - old - 2;

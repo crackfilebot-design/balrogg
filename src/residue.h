@@ -10,10 +10,10 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program. If not, see <http://www.gnu.org/licenses/>.  */
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 /*  RS_CM selects mixed stages; RS_ENC is 0/1 for a fixed coding direction
-    or -1 for both. RS_MATCH selects the match model. Dispatch happens outside
+    or -1 for both.  RS_MATCH selects the match model.  Dispatch happens outside
     the partition loop.  */
 #define PHASH(st_) cm_hst(phb, phx, (u32) (st_))
 #define RS_ENCODING(s_) (RS_ENC < 0 ? (s_)->z->enc : RS_ENC)
@@ -37,7 +37,7 @@ static INLINE int RS_NAME(bit)(const rs_ctx * s, u32 * p, int bit) {
 }
 #endif
 
-/*  Keep digit temporaries out of the surrounding symbol loop. Each stage
+/*  Keep digit temporaries out of the surrounding symbol loop.  Each stage
     has a fixed model path, and plain digits need no mixer state.  */
 static HOT NOINLINE i32 RS_NAME(val)(const rs_ctx * s, u32 c, u32 ch, i32 v) {
   vb_ctx * n = s->n;

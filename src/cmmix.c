@@ -10,7 +10,7 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program. If not, see <http://www.gnu.org/licenses/>.  */
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "cm.h"
 #include "prof.h"
@@ -41,7 +41,7 @@ static INLINE i32 mix_dot(mixin t, const short * w, int plain) {
                          : *(const __m128i *) (const void *) w;
   __m128i s = _mm_madd_epi16(t, weights);
   s = _mm_srai_epi32(s, 8);
-  /*  No-match inputs 4..7 are zero. Keep the per-pair shift before summing. */
+  /*  No-match inputs 4..7 are zero.  Keep the per-pair shift before summing.  */
   if (!plain) s = _mm_add_epi32(s, _mm_srli_si128(s, 8));
   s = _mm_add_epi32(s, _mm_srli_si128(s, 4));
   return (i32) _mm_cvtsi128_si32(s);
@@ -103,7 +103,7 @@ static INLINE int mix_bit(cm * restrict c, int st, int sel, u32 h,
   if (c->d) rc_dec_norm(c->d);
   cm_stage * s = c->st + st;
   /*  cm_new allocates these buffers separately from each other, the arena
-      model, and the coder. Restrict the leaf accesses as well as c and p.  */
+      model, and the coder.  Restrict the leaf accesses as well as c and p.  */
   u8 * restrict sp = s->hist + (h & c->hmask);
   int state = *sp;
   short * restrict w = s->w + sel * CM_NI;
@@ -114,7 +114,7 @@ static INLINE int mix_bit(cm * restrict c, int st, int sel, u32 h,
   int mi = 0;
   mixin in;
   /*  The state map stays in 1..0xFFFE and cm_squash returns 16..65504, so
-      neither probability needs clamping. The decoded arena value is P(0).  */
+      neither probability needs clamping.  The decoded arena value is P(0).  */
   if (exp < 0)
     in = mix_in6(cm_str16[65536u - prob], bd, 0, 0);
   else {

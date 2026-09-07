@@ -10,7 +10,7 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program. If not, see <http://www.gnu.org/licenses/>.  */
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "t_harness.h"
 
@@ -29,7 +29,8 @@ int main(int argc, char ** argv) {
         continue;
       }
       picked = 1;
-      if (!strcmp(argv[i], "unit")) xt_run_unit();
+      if (!strcmp(argv[i], "comments")) xt_run_comments();
+      else if (!strcmp(argv[i], "unit")) xt_run_unit();
       else if (!strcmp(argv[i], "layers")) xt_run_layers();
       else if (!strcmp(argv[i], "files")) xt_run_files();
       else if (!strcmp(argv[i], "cli")) xt_run_cli();
@@ -38,6 +39,7 @@ int main(int argc, char ** argv) {
     }
     if (picked) return xt_finish("t_suite");
   }
+  xt_run_comments();
   xt_run_unit();
   xt_run_layers();
   xt_run_files();

@@ -10,10 +10,11 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program. If not, see <http://www.gnu.org/licenses/>.  */
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "opusmode.h"
 #include "archive.h"
+#include "comment.h"
 #include "ogg.h"
 #include "opusent.h"
 #include "rc.h"
@@ -239,7 +240,7 @@ typedef struct {
   int n;
 } mctx;
 
-/*  Start at 2^14 slots and double at half capacity. Full key comparison makes
+/*  Start at 2^14 slots and double at half capacity.  Full key comparison makes
     table growth output-neutral.  */
 #define CHB0 14
 
@@ -250,7 +251,7 @@ static unsigned chb;
 static u32 * live;
 static sz nlive, clive;
 
-/*  Include the prior index in the hash because PVQ keys omit geometry. Probes
+/*  Include the prior index in the hash because PVQ keys omit geometry.  Probes
     still compare the complete key and prior pair.  */
 static INLINE unsigned ctx_slot(okey key, const prior * pr) {
   okey h = (key ^ (okey) (pr - pri) * K64(0xC2B2AE3D, 0x27D4EB4F))
@@ -352,13 +353,13 @@ static HOT FLATTEN void ctx_code(mctx * c, int inc, int cap, int * v) {
 typedef struct { int scale, inc, cap; } kparm;
 
 static const kparm KP[OP_NKINDS] = {
-  {  384, 28, 16384 },  /*  OP_ICDF     */
-  {  384, 28, 16384 },  /*  OP_ICDF16   */
+  {  384, 28, 16384 },  /*  OP_ICDF  */
+  {  384, 28, 16384 },  /*  OP_ICDF16  */
   {  256, 24,  8192 },  /*  OP_LOGP is binary; only `scale` is used  */
-  { 1024, 16, 16384 },  /*  OP_BITS     */
-  { 1024, 24,  8192 },  /*  OP_UINT     */
+  { 1024, 16, 16384 },  /*  OP_BITS  */
+  { 1024, 24,  8192 },  /*  OP_UINT  */
   {  512, 48, 16384 },  /*  OP_LAPLACE  */
-  {  192, 32, 16384 }   /*  OP_THETA    */
+  {  192, 32, 16384 }   /*  OP_THETA  */
 };
 
 /*  Binary probability slots.
@@ -839,7 +840,7 @@ opus_int32 om_op(oprec * op) {
           break;
         }
       }
-      /*  Split only valid codeword geometry. Otherwise code the flat index.  */
+      /*  Split only valid codeword geometry.  Otherwise code the flat index.  */
       if (orec_pvqN >= 1 && orec_pvqN <= PVQ_UN && orec_pvqK >= 1
           && orec_pvqK <= PVQ_UK && V == pvq_V(orec_pvqN, orec_pvqK)) {
         static int y[PVQ_UN + 2];
@@ -878,7 +879,7 @@ opus_int32 om_op(oprec * op) {
     break;
   }
   case OP_BITS: {
-    /*  Adapt fine-energy bits identified by orec_ftb. Pass other raw bits
+    /*  Adapt fine-energy bits identified by orec_ftb.  Pass other raw bits
         through.  */
     unsigned nb = op->ftb;
     if (nb > 0 && nb <= 8 && orec_ftb == (int) nb) {
@@ -924,10 +925,9 @@ opus_int32 om_op(oprec * op) {
 #define K_FSLACK  ((okey) 0x1E000000UL << 32)
 #define K_FBYTE   ((okey) 0x1F000000UL << 32)
 
-/* RFC 7845 section 6 requires support through this audio packet size.
-   Keep scratch bounded; header packets currently share the same limit. */
+/*  RFC 7845 section 6 audio packet bound, also used for OpusHead scratch.  */
 #define OPUS_MAXPKT 61440
-/* The last model symbol escapes to a longer length without widening models. */
+/*  The last model symbol escapes to a longer length without widening models.  */
 #define OC_BLOBESC 4095
 #define OC_HDRESC  15
 
@@ -1040,7 +1040,7 @@ static void oc_packet_trailer(int n, u8 * t) {
     t[i] = (u8) b);
 }
 
-/*  Code OpusHead and OpusTags whole.  */
+/*  Code the small identification packet whole.  */
 static void oc_blob(u8 * b, int * n) {
   int i, v = MIN(*n, OC_BLOBESC);
   om_int(K_RAW, 4096, 192, 28, 16384, &v);
@@ -1109,7 +1109,7 @@ static void st_free(ostream * s) {
   memset(s, 0, sizeof *s);
 }
 
-/* Fetch a packet from its original pages; continued packets skip framing. */
+/*  Fetch a packet from its original pages; continued packets skip framing.  */
 static void packet_read(blr_file * input, const opkt * pk, u8 * packet) {
   sz at = pk->off, end = pk->end, left = (sz) pk->len;
   while (left) {
@@ -1126,6 +1126,66 @@ static void packet_read(blr_file * input, const opkt * pk, u8 * packet) {
       Fi(n, end += h[OGG_HDRMIN + i]);
     }
   }
+}
+
+typedef struct { sz off, start, len; } tag_extent;
+typedef struct {
+  blr_file * input;
+  tag_extent * ext;
+  sz count, len;
+} tag_reader;
+
+static void tag_open(tag_reader * r, blr_file * input, const opkt * pk) {
+  sz at = pk->off, end = pk->end, left = (sz) pk->len, cap = 0;
+  r->input = input;  r->ext = NULL;  r->count = r->len = 0;
+  while (left) {
+    sz take = MIN(left, end - at);
+    if (take) {
+      tag_extent * x;
+      if (r->count == cap) {
+        cap = cap ? cap * 2 : 16;
+        FATAL_UNLESS(cap <= SIZE_MAX / sizeof *r->ext, "opus: too many metadata extents");
+        r->ext = xrealloc(r->ext, cap * sizeof *r->ext);
+      }
+      x = r->ext + r->count++;
+      x->off = at;  x->start = r->len;  x->len = take;  r->len += take;
+    }
+    at += take;  left -= take;
+    if (left) {
+      u8 h[OGG_HDRMIN + OGG_MAXSEG];
+      sz n, i;
+      bf_read(input, end, h, OGG_HDRMIN);
+      n = h[26];  bf_read(input, end + OGG_HDRMIN, h + OGG_HDRMIN, n);
+      at = end + OGG_HDRMIN + n;  end = at;
+      Fi(n, end += h[OGG_HDRMIN + i]);
+    }
+  }
+}
+
+static void tag_read(void * ctx, sz at, u8 * b, sz n) {
+  tag_reader * r = ctx;
+  sz lo = 0, hi = r->count;
+  FATAL_UNLESS(at <= r->len && n <= r->len - at, "comment: read beyond packet");
+  while (lo < hi) {
+    sz mid = lo + (hi - lo) / 2;
+    if (r->ext[mid].start + r->ext[mid].len <= at) lo = mid + 1;
+    else hi = mid;
+  }
+  while (n) {
+    const tag_extent * x = r->ext + lo++;
+    sz off = at - x->start, take = MIN(n, x->len - off);
+    bf_read(r->input, x->off + off, b, take);
+    b += take;  at += take;  n -= take;
+  }
+}
+
+static int comment_bit(void * ctx, u32 prob, int b) {
+  u16 p = (u16) prob;
+  (void) ctx;
+  if (om_mode == OM_DEC) b = orc_dec_bit(D, &p, NULL);
+  else rc_enc_bit_raw(E, prob, b);
+  PROF(prof_sym(om_comp, b ? prob : 0, b ? 65536 : prob, 65536));
+  return b;
 }
 
 /*  Split Ogg Opus input into packets and page headers.  */
@@ -1172,7 +1232,11 @@ static int parse_stream(blr_file * input, ostream * s) {
     s->npg++;
     Fi(p.nseg,
       int sl = p.lace[i];
-      if (acclen + sl > OPUS_MAXPKT) { fprintf(stderr, "balrogg: over-long Opus packet\n");  goto bad; }
+      int limit = s->npk == 1 ? (int) CMT_MAXLEN : OPUS_MAXPKT;
+      if (sl > limit - acclen) {
+        fprintf(stderr, "balrogg: Opus %s exceeds %d bytes\n",
+                s->npk == 1 ? "comments" : "packet", limit);  goto bad;
+      }
       if (!acclen) { pstart = off + OGG_HDRMIN + p.nseg + (sz) boff;  pend = off + got; }
       acclen += sl;  boff += sl;
       if (sl < 255) {
@@ -1220,13 +1284,13 @@ bad:
   return 1;
 }
 
-/* Page metadata precedes packets, so decoding emits each completed page once. */
+/*  Page metadata precedes packets, so decoding emits each completed page once.  */
 typedef struct {
   const ostream * stream;
   blr_file * output;
   u8 * page;
   int pg, seg;
-  sz body;
+  sz body, partial;
 } page_writer;
 
 static void page_flush(page_writer * w) {
@@ -1247,19 +1311,36 @@ static void page_empty(page_writer * w) {
   while (w->pg < w->stream->npg && !w->stream->pg[w->pg].nsegs) page_flush(w);
 }
 
-static void page_packet(page_writer * w, const u8 * packet, sz len) {
-  sz take;
-  do {
+/*  Finish one lace.  A partial lace survives comment output batches.  */
+static void page_lace(page_writer * w) {
+  int ns = w->stream->pg[w->pg].nsegs;
+  w->page[OGG_HDRMIN + w->seg++] = (u8) w->partial;
+  w->partial = 0;
+  if (w->seg == ns) page_flush(w);
+}
+
+static void page_bytes(void * ctx, const u8 * packet, sz len) {
+  page_writer * w = ctx;
+  while (len) {
+    sz take = MIN(len, 255 - w->partial);
     int ns;
     page_empty(w);
     FATAL_UNLESS(w->pg < w->stream->npg, "opus: packets exceed page layout");
     ns = w->stream->pg[w->pg].nsegs;
-    take = MIN(len, (sz) 255);
-    w->page[OGG_HDRMIN + w->seg++] = (u8) take;
     memcpy(w->page + OGG_HDRMIN + ns + w->body, packet, take);
-    w->body += take;  packet += take;  len -= take;
-    if (w->seg == ns) page_flush(w);
-  } while (take == 255);
+    w->body += take;  w->partial += take;  packet += take;  len -= take;
+    if (w->partial == 255) page_lace(w);
+  }
+}
+
+static void page_endpacket(page_writer * w) {
+  page_empty(w);
+  FATAL_UNLESS(w->pg < w->stream->npg, "opus: packets exceed page layout");
+  page_lace(w);
+}
+
+static void page_packet(page_writer * w, const u8 * packet, sz len) {
+  page_bytes(w, packet, len);  page_endpacket(w);
 }
 
 int opus_pack(const char * in, const char * out, int lev) {
@@ -1301,8 +1382,16 @@ int opus_pack(const char * in, const char * out, int lev) {
     p.seqno = s.pg[i].seqno;  p.granule = s.pg[i].granule;
     oc_page(&cs, &p));
 
-  Fi(2, int n = s.pk[i].len;
-        packet_read(input, s.pk + i, packet);  oc_blob(packet, &n));
+  { int n = s.pk[0].len;
+    packet_read(input, s.pk, packet);  oc_blob(packet, &n); }
+  { cmt_io c;
+    tag_reader r;
+    u = (u32) s.pk[1].len;  oc_u32(&u);
+    tag_open(&r, input, s.pk + 1);
+    c.enc = 1;  c.input = &r;  c.read = tag_read;
+    c.coder = NULL;  c.bit = comment_bit;  c.output = NULL;  c.write = NULL;
+    cmt_code(&c, u, 1);  free(r.ext);
+  }
 
   dec = opus_decoder_create(s.channels);
   if (!dec) { fprintf(stderr, "balrogg: %s cannot create Opus decoder\n", in);  goto done; }
@@ -1361,6 +1450,7 @@ int opus_unpack(const char * in, const char * out) {
             in, a.flags, (unsigned long) a.n);
     goto done;
   }
+  FATAL_UNLESS(!a.ntune, "opus: unexpected tune parameters");
   pvq_lev = (int) ARC_LEVEL(a.flags);
   orc_dec_init(&d, a.s[0].file, a.s[0].off, a.s[0].len);
   om_init();  om_mode = OM_DEC;  E = NULL;  D = &d;
@@ -1395,19 +1485,25 @@ int opus_unpack(const char * in, const char * out) {
   output = bf_open(out, 1);  w.output = output;  w.stream = &s;
   w.page = xmalloc(OGG_HDRMIN + OGG_MAXSEG + 65025);
 
-  Fi(2,
-    int n = 0;
+  { int n = 0;
     oc_blob(packet, &n);
-    if (!i) {
-      if (n < 19 || memcmp(packet, "OpusHead", 8)) {
-        fprintf(stderr, "balrogg: %s has no OpusHead\n", in);  goto done;
-      }
-      s.channels = packet[9];
-      if (s.channels < 1 || s.channels > 2) {
-        fprintf(stderr, "balrogg: %s invalid channel count %d\n", in, s.channels);  goto done;
-      }
+    if (n < 19 || memcmp(packet, "OpusHead", 8)) {
+      fprintf(stderr, "balrogg: %s has no OpusHead\n", in);  goto done;
     }
-    page_packet(&w, packet, (sz) n));
+    s.channels = packet[9];
+    if (s.channels < 1 || s.channels > 2 || packet[18]) {
+      fprintf(stderr, "balrogg: %s invalid Opus channel mapping\n", in);  goto done;
+    }
+    page_packet(&w, packet, (sz) n);
+  }
+  { cmt_io c;
+    oc_u32(&u);
+    FATAL_UNLESS(u <= CMT_MAXLEN, "opus: comments exceed 120 MiB");
+    c.enc = 0;  c.input = NULL;  c.read = NULL;
+    c.coder = NULL;  c.bit = comment_bit;
+    c.output = &w;  c.write = page_bytes;
+    cmt_code(&c, u, 1);  page_endpacket(&w);
+  }
 
   dec = opus_decoder_create(s.channels);
   if (!dec) { fprintf(stderr, "balrogg: %s cannot create Opus decoder\n", in);  goto done; }

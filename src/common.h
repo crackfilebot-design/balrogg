@@ -10,7 +10,7 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program. If not, see <http://www.gnu.org/licenses/>.  */
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #ifndef BLR_COMMON_H
 #define BLR_COMMON_H
@@ -109,7 +109,7 @@ extern int blr_fuzz_armed;
 void blr_memcap(void);
 
 void * xmalloc(sz n);
-/* Zero-initialize the requested, bounded allocation. */
+/*  Zero-initialize the requested, bounded allocation.  */
 void * xcalloc(sz n, sz size);
 void * xrealloc(void * p, sz n);
 u8 * slurp(const char * path, sz * len);

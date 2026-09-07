@@ -10,7 +10,7 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program. If not, see <http://www.gnu.org/licenses/>.  */
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 /*  Command line and batch execution.  */
 
@@ -167,7 +167,7 @@ static int arc_is_opus(const char * path) {
   u8 b[ARC_HDRLEN];
   int n = peek(path, b, (int) sizeof b);
   return n >= (int) ARC_HDRLEN && !memcmp(b, ARC_MAGIC, ARC_MAGLEN)
-         && b[ARC_MAGLEN] <= ARC_VER && b[ARC_MAGLEN + 1] & ARC_OPUS;
+         && b[ARC_MAGLEN] == ARC_VER && b[ARC_MAGLEN + 1] & ARC_OPUS;
 }
 
 /*  File identity and size without the C runtime's stat(), which the
@@ -296,7 +296,7 @@ static long blr_cores(void) {
 #endif
 }
 
-/*  Available memory, including reclaimable cache. Zero if unknown.  */
+/*  Available memory, including reclaimable cache.  Zero if unknown.  */
 
 static bytes_t blr_avail(void) {
 #if defined(BLR_WIN_LEGACY)

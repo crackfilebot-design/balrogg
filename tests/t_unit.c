@@ -10,7 +10,7 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program. If not, see <http://www.gnu.org/licenses/>.  */
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 /*  Core unit tests.  */
 
@@ -37,8 +37,8 @@ static void t_mapping(void) {
   CHECK(!m.p && !m.len, "mapping can be released twice");
 }
 
-/* Cross file-window boundaries, revisit flushed data, then resume appending.
-   This also exercises the backward writes used by the Opus carry chain. */
+/*  Cross file-window boundaries, revisit flushed data, then resume appending.
+    This also exercises the backward writes used by the Opus carry chain.  */
 static void t_file_windows(void) {
   const char * path = xt_tmp("window.bin"), * path2 = xt_tmp("window-copy.bin");
   blr_file * f = bf_open(path, 1), * copy = bf_open(path2, 1);
@@ -54,7 +54,7 @@ static void t_file_windows(void) {
     sz at = marks[i];
     expected[at] ^= 0xA7;
     bf_write(f, at, expected + at, 1));
-  /* Force the cached window backwards before append. */
+  /*  Force the cached window backwards before append.  */
   CHECK(bf_get(f, 0) == expected[0], "backward read after overwrite");
   expected[n] = 0x37;  bf_put(f, expected[n]);
   bf_copy(copy, f, 0, n + 1);
@@ -86,8 +86,8 @@ static void t_file_windows(void) {
   xt_unlink(path);  xt_unlink(path2);
 }
 
-/* Interleave several streams, including a control stream that finishes last.
-   Verify reads straddling chunks and lossless container parse/re-emission. */
+/*  Interleave several streams, including a control stream that finishes last.
+    Verify reads straddling chunks and lossless container parse/re-emission.  */
 static void t_chunks(void) {
   const char * path = xt_tmp("chunks.blr"), * path2 = xt_tmp("chunks-copy.blr");
   blr_file * output = bf_open(path, 1), * st[3], * input;
@@ -409,7 +409,7 @@ static void t_plain_kernel(cm_bit_fn reference, cm_plain_fn plain,
             "no-match archive differs from the general kernel");
       input = bf_memory(rc_enc_data(&eb), lb);
       rc_dec_file(&d, input, 0, lb);
-      /*  End the initial window at the seed to force a refill in the mixer. */
+      /*  End the initial window at the seed to force a refill in the mixer.  */
       d.avail = d.pos;
       cm_bind(&c, NULL, &d);
     }

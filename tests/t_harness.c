@@ -10,7 +10,7 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program. If not, see <http://www.gnu.org/licenses/>.  */
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "t_harness.h"
 #include "rc.h"
@@ -63,7 +63,7 @@ void xt_init(void) {
 
 int xt_open_report(const char * path) {
 #ifdef BLR_DOS
-  /* The guest has no visible console. Keep fatal library diagnostics too. */
+  /*  The guest has no visible console.  Keep fatal library diagnostics too.  */
   report = freopen(path, "w", stderr);
 #else
   report = fopen(path, "w");
@@ -249,8 +249,8 @@ const char * xt_tmp(const char * tag) {
     const char * ext;
     xt_dos_name(tag, dos, sizeof dos);
     ext = strrchr(dos, '.');
-    /* Reserve the prefix inside the eight-character stem. The slot keeps
-       different tags distinct even when their shortened 8.3 names collide. */
+    /*  Reserve the prefix inside the eight-character stem.  The slot keeps
+        different tags distinct even when their shortened 8.3 names collide.  */
     snprintf(buf[used], sizeof buf[used], "ts%02d%s", used, ext ? ext : ""); }
 #else
   snprintf(buf[used], sizeof buf[used], "t_suite-%s.tmp", tag);

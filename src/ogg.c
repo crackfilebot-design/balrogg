@@ -10,7 +10,7 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program. If not, see <http://www.gnu.org/licenses/>.  */
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "ogg.h"
 
@@ -163,7 +163,7 @@ u32 ogg_cont_dec(ogg_hdr * h, rc_dec * d) { return mdl_dec(&h->ct, d); }
 
 void ogg_hdr_step(ogg_hdr * h, u32 samples) { h->cum += samples; }
 
-/*  Predict granules from prior packet sample counts. A first-order model then
+/*  Predict granules from prior packet sample counts.  A first-order model then
     gives steady full pages a zero residual.  */
 void ogg_hdr_enc(ogg_hdr * h, rc_enc * e, const ogg_page * p, int first) {
   int i;
@@ -196,7 +196,7 @@ void ogg_hdr_dec(ogg_hdr * h, rc_dec * d, ogg_page * p, int first) {
   ogg_pack(p);
 }
 
-/* The lacing table gives the exact page size before reading the body. */
+/*  The lacing table gives the exact page size before reading the body.  */
 sz ogg_read(blr_file * file, sz off, ogg_page * p, u8 * image) {
   sz n = OGG_HDRMIN, body = 0, i, seg;
   if (off > file->len || file->len - off < OGG_HDRMIN) return 0;

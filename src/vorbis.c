@@ -10,9 +10,10 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program. If not, see <http://www.gnu.org/licenses/>.  */
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "vorbis.h"
+#include "comment.h"
 #include "prof.h"
 
 static void cm_alloc(vb_ctx * v);
@@ -20,7 +21,7 @@ static void ar_clear(vb_ctx * v, sz at, sz n);
 
 /*  Value models.  An asterisk marks a field configured like its neighbour
     rather than on its own.  A plus marks depths raised to cover the field's
-    full packet width. M_MULTW handles multiplicands whose residual exceeds
+    full packet width.  M_MULTW handles multiplicands whose residual exceeds
     the usual field.  */
 
 static const mdl_cfg CFG[M_N] = {
@@ -75,11 +76,11 @@ void vb_init(vb_ctx * v) {
   sz i;
   Fi(M_N, mdl_init(v->m + i, CFG + i));
   rc_probs_init(v->f, F_NSLOT);
-  v->cmt = xmalloc(VB_CBANK * VB_CSIZE * sizeof *v->cmt);
-  v->cmtc = NULL;
+  v->tailp = xmalloc(VB_TBANK * VB_TSIZE * sizeof *v->tailp);
+  v->tailc = NULL;
   memset(v->fc, 0, sizeof v->fc);  memset(v->amc, 0, sizeof v->amc);
   memset(v->awc, 0, sizeof v->awc);
-  rc_probs_init(v->cmt, VB_CBANK * VB_CSIZE);
+  rc_probs_init(v->tailp, VB_TBANK * VB_TSIZE);
   v->pb = 0;  memset(&v->i, 0, sizeof v->i);
   /*  Ordinary packets use type zero; other values describe extra syntax.  */
   rc_probs_init(v->am, VB_MBANK * VB_MSTEP);
@@ -124,9 +125,11 @@ void vb_tune_put(const vb_tune * t, u8 * p) {
 
 void vb_tune_get(vb_tune * t, const u8 * p, sz n) {
   vb_tune_default(t);
-  if (n >= 1) t->alim = p[0] ? p[0] : 1;
-  if (n >= 2) t->lr = p[1] ? p[1] : 1;
-  if (n >= 3) t->flags = p[2];
+  FATAL_UNLESS(n == 0 || n == VB_TUNE_LEN, "invalid Vorbis tune length %lu",
+               (unsigned long) n);
+  if (n) {
+    t->alim = p[0] ? p[0] : 1;  t->lr = p[1] ? p[1] : 1;  t->flags = p[2];
+  }
 }
 
 static void bk_free(vb_book * b) {
@@ -138,8 +141,8 @@ void vb_free(vb_ctx * v) {
   sz i, j;
   Fi(M_N, mdl_free(v->m + i));
   mdl_free(&v->apt);
-  free(v->cmt);  v->cmt = NULL;
-  free(v->cmtc);  v->cmtc = NULL;
+  free(v->tailp);  v->tailp = NULL;
+  free(v->tailc);  v->tailc = NULL;
   cm_free(&v->cm);
   Fi(v->nsu,
     Fj(v->su[i]->nbk, bk_free(v->su[i]->bk + j));
@@ -159,9 +162,9 @@ void vb_free(vb_ctx * v) {
 void vb_level(vb_ctx * v, int lev) {
   FATAL_UNLESS(lev >= 0 && lev < CM_NLEV, "vorbis: effort %d is out of range", lev);
   FATAL_UNLESS(!v->ar, "vorbis: the arena is already in use");
-  /*  Header packets need these tables before the audio arena exists.  */
+  /*  Audio tails use byte models independent of the payload arena.  */
   rc_adapt_init();
-  if (!v->cmtc) v->cmtc = xcalloc(VB_CBANK * VB_CSIZE, 1);
+  if (!v->tailc) v->tailc = xcalloc(VB_TBANK * VB_TSIZE, 1);
   v->cm_mask = CM_LEVMASK[lev];
   if (v->cm_mask) cm_alloc(v);
 }
@@ -195,17 +198,17 @@ void vb_reset(vb_ctx * v) {
   Fi(M_N, rc_probs_init(v->m[i].p, v->m[i].n));
   rc_probs_init(v->apt.p, v->apt.n);
   rc_probs_init(v->f, F_NSLOT);
-  rc_probs_init(v->cmt, VB_CBANK * VB_CSIZE);
+  rc_probs_init(v->tailp, VB_TBANK * VB_TSIZE);
   rc_probs_init(v->am, VB_MBANK * VB_MSTEP);
   rc_probs_init(&v->aw[0][0], 4);
   memset(v->fc, 0, sizeof v->fc);  memset(v->amc, 0, sizeof v->amc);
   memset(v->awc, 0, sizeof v->awc);
-  if (v->cmtc) memset(v->cmtc, 0, VB_CBANK * VB_CSIZE);
+  if (v->tailc) memset(v->tailc, 0, VB_TBANK * VB_TSIZE);
   if (v->ar) {
     /*  AR_LIVE treats zero as pristine.  */
     ar_clear(v, 0, v->aglob);
     memset(v->ai, 0, sizeof v->ai);
-    /* Slot regions are cleared on their next use. */
+    /*  Slot regions are cleared on their next use.  */
   }
   Fi(VB_MAXSLOT, free(v->sl[i].len));
   memset(v->sl, 0, sizeof v->sl);  memset(v->st, 0, sizeof v->st);
@@ -395,12 +398,12 @@ static void bk_tree(vb_book * b) {
     b->nd[idx] = -(i32) (i + 1));
 }
 
-/*  A lookup-1 entry is a base-`nv` list of multiplicand indices. Code centered
+/*  A lookup-1 entry is a base-`nv` list of multiplicand indices.  Code centered
     values and use `inv` to recover each index before recomposition.  */
 static void bk_look(vb_book * b) {
   u32 i, mx = 0, np;
   /*  For t < 2^24, rounding this reciprocal up adds less than 1/nv to
-      t/nv. The integer quotient is exact, including nv == 1.  */
+      t/nv.  The integer quotient is exact, including nv == 1.  */
   b->divshift = 24 + blr_ilog(b->nv - 1);
   b->divmul = (u32) ((((uint64_t) 1 << b->divshift) + b->nv - 1) / b->nv);
   Fi(b->nv, if (b->mult[i] > mx) mx = b->mult[i]);
@@ -488,7 +491,7 @@ static u32 pool_slot(vb_ctx * v, vb_book * b) {
 }
 
 
-/*  Codeword lengths form one first-order chain across the setup. Sparse books
+/*  Codeword lengths form one first-order chain across the setup.  Sparse books
     also code use flags, while ordered books code run lengths.  */
 
 static void lengths(io * z, vb_book * k) {
@@ -515,7 +518,7 @@ static void lengths(io * z, vb_book * k) {
     if (used) k->len[i] = (u8) (fld(z, M_LEN, 5, 0) + 1));
 }
 
-/*  Vorbis float32 has a sign, 10-bit exponent, and 21-bit mantissa. The two
+/*  Vorbis float32 has a sign, 10-bit exponent, and 21-bit mantissa.  The two
     mantissas share one model.  */
 static u32 flt(io * z, int expblk, int sgn) {
   u32 w = z->enc ? bget(z, 32) : 0, s, e, m;
@@ -573,7 +576,7 @@ static void codebooks(io * z) {
     tfld(z, F_SEQ, 1, 1);
     k->nv = lk1(k->ent, k->dim);
     k->mult = xmalloc((k->nv ? k->nv : 1) * sizeof *k->mult);
-    /*  Predict libvorbis's centered zigzag multiplicands. Use M_MULTW when a
+    /*  Predict libvorbis's centered zigzag multiplicands.  Use M_MULTW when a
         value can exceed M_MULT's residual range.  */
     mk = vb > 8 || k->nv > 0x100 ? M_MULTW : M_MULT;
     Fi(k->nv, k->mult[i] = fld(z, mk, (int) vb,
@@ -641,7 +644,7 @@ static void floors(io * z) {
     fl_sort(q));
 }
 
-/*  Floor and residue book numbers share a first-order chain. Residue book
+/*  Floor and residue book numbers share a first-order chain.  Residue book
     lists continue from their class book with second-order prediction.  */
 static void residues(io * z) {
   vb_setup * s = z->v->cur;
@@ -754,23 +757,30 @@ static void ident(io * z) {
                (unsigned long) n->bs0, (unsigned long) n->bs1);
 }
 
-/*  Bank comment-byte trees by the prior high nibble.  */
+static int comment_bit(void * ctx, u32 prob, int b) {
+  io * z = ctx;
+  if (!z->enc) b = rc_dec_bit_raw(z->d[S_BULK], prob);
+  else rc_enc_bit_raw(z->e[S_BULK], prob, b);
+  REPORT(prob, b);  return b;
+}
+
+static void comment_read(void * ctx, sz at, u8 * b, sz n) {
+  io * z = ctx;
+  FATAL_UNLESS(at <= z->len && n <= z->len - at, "comment: read beyond packet");
+  memcpy(b, z->b + at, n);
+}
+
+static void comment_write(void * ctx, const u8 * b, sz n) {
+  io * z = ctx;
+  memcpy(z->b + z->pos / 8, b, n);  z->pos += n * 8;
+}
+
 static void comment(io * z) {
-  u32 prev = 0, i, idx, bank;
-  int k, b = 0;
-  u16 * s;
-  u8 * sc;
-  Fi(z->len,
-    bank = prev >> 4;
-    if (bank >= VB_CBANK) bank = VB_CBANK - 1;
-    s = z->v->cmt + bank * VB_CSIZE;  idx = 1;
-    sc = z->v->cmtc + bank * VB_CSIZE;
-    for (k = 7; k >= 0; k--) {
-      b = cbit(z, S_BULK, s + idx, sc + idx, z->b[i] >> k & 1);
-      idx = idx * 2 + (u32) b;
-    }
-    prev = idx - VB_CSIZE;
-    if (!z->enc) z->b[i] = (u8) prev);
+  cmt_io c;
+  c.enc = z->enc;  c.input = z;  c.read = comment_read;
+  c.coder = z;  c.bit = comment_bit;
+  c.output = z;  c.write = comment_write;
+  cmt_code(&c, z->len, 0);
   z->pos = z->len * 8;
 }
 
@@ -857,19 +867,19 @@ void vb_hdr_dec(vb_ctx * v, rc_dec * d, int which, u8 * pkt, sz len) {
 
 /*  Mode and window contexts reset at link boundaries.  */
 
-/*  Arena table sizes as products of their context axes. Shared tables precede
+/*  Arena table sizes as products of their context axes.  Shared tables precede
     the five tables repeated for each model slot.  */
 
 static const u32 AR_SIZE[A_NTAB] = {
-  AR_HIST2,                                            /*  A_USED   */
+  AR_HIST2,                                            /*  A_USED  */
   VB_MAXFLOOR * AR_HIST2 * VB_MAXPOST,                 /*  A_FZERO  */
-  VB_MAXFLOOR * AR_PLEN * VB_MAXPOST * 8,              /*  A_FLEN   */
-  VB_MAXFLOOR * VB_MAXPOST * AR_TRI * AR_LOW2,         /*  A_FMAG   */
+  VB_MAXFLOOR * AR_PLEN * VB_MAXPOST * 8,              /*  A_FLEN  */
+  VB_MAXFLOOR * VB_MAXPOST * AR_TRI * AR_LOW2,         /*  A_FMAG  */
   AR_NRES * AR_PCLS * AR_NPART * 16,                   /*  A_CLASS  */
   AR_NRES * 2 * 2 * 2 * AR_NBIN * AR_NCH,              /*  A_RZERO  */
   AR_NRES * 2 * 2 * 2 * AR_HIST2 * AR_ILOG * AR_NCH,   /*  A_RSIGN  */
-  AR_NRES * 2 * AR_MCLS * 2 * AR_ILOG * AR_NCH,        /*  A_RONE   */
-  AR_NRES * AR_MCLS * AR_NCH * 8,                      /*  A_RLEN   */
+  AR_NRES * 2 * AR_MCLS * 2 * AR_ILOG * AR_NCH,        /*  A_RONE  */
+  AR_NRES * AR_MCLS * AR_NCH * 8,                      /*  A_RLEN  */
   AR_NRES * AR_MAGB * AR_MCLS * AR_NCH * AR_LOW2       /*  A_RMANT  */
 };
 
@@ -910,7 +920,7 @@ static void ar_clear(vb_ctx * v, sz at, sz n) {
   memset(v->ar + at, 0, n * sizeof *v->ar);
 }
 
-/*  pool_slot bounds k. Seed once per partition, outside the digit loop.  */
+/*  pool_slot bounds k.  Seed once per partition, outside the digit loop.  */
 static u32 ar_slot(vb_ctx * v, u32 k) {
   u32 at = v->aglob + k * v->astep;
   if (!v->ai[k]) {
@@ -928,7 +938,7 @@ static u32 * scratch(u32 ** p, sz * have, sz want) {
 }
 
 
-/* Small prefix tables replace most bit-at-a-time codeword walks. */
+/*  Small prefix tables replace most bit-at-a-time codeword walks.  */
 static void bk_fast(vb_book * b) {
   u32 i, j;
   b->fast = xmalloc(256 * sizeof *b->fast);  b->fastbits = xmalloc(256);
@@ -940,8 +950,8 @@ static void bk_fast(vb_book * b) {
     b->fast[i] = t;  b->fastbits[i] = (u8) j);
 }
 
-/* Cache only one packet's parsed symbols, capped at 256 KiB. Large unusual
-   packets use the same checked traversal without caching. */
+/*  Cache only one packet's parsed symbols, capped at 256 KiB.  Large unusual
+    packets use the same checked traversal without caching.  */
 static u32 bk_get(io * z, vb_book * b) {
   u32 idx = 0, e;
   i32 t;
@@ -990,7 +1000,7 @@ static void bk_put(io * z, vb_book * b, u32 e) {
   for (k = b->len[e]; k > 0; k--) bput1(z, b->code[e] >> (k - 1) & 1);
 }
 
-/*  Code Floor 1 posts in ascending X order. Contexts include zero history,
+/*  Code Floor 1 posts in ascending X order.  Contexts include zero history,
     prior length at the same post, and the first two magnitude bits.  */
 static u32 fl_val(io * z, u32 f, u32 i, u8 * h, u32 v) {
   vb_ctx * n = z->v;
@@ -1047,7 +1057,7 @@ static int fl_get(io * z, vb_floor * f, u32 * y, u32 * classes) {
       cv >>= cs;
       y[post + k] = b >= 0 ? bk_get(z, s->bk + b) : 0;
       if (z->rawpkt) return 0);
-    /* Record whether the value model needs a classword correction. */
+    /*  Record whether the value model needs a classword correction.  */
     if (cv0 >> cs * cd) z->choices = 1;
     Fk(cd,
       u32 j, d = cv0 >> k * cs & ((1UL << cs) - 1);
@@ -1058,7 +1068,7 @@ static int fl_get(io * z, vb_floor * f, u32 * y, u32 * classes) {
   return 1;
 }
 
-/*  Select the first subclass book that can represent the value. An absent book
+/*  Select the first subclass book that can represent the value.  An absent book
     represents zero.  */
 static void fl_put(io * z, vb_floor * f, const u32 * y, int used,
                     const u32 * classes) {
@@ -1113,8 +1123,8 @@ static void cm_step(vb_ctx * v, u32 ch, u32 c, i32 val) {
   v->nxv = val;  v->npch = (int) ch;  v->nstarted = 1;
 }
 
-/*  Partition classes use a four-bit tree banked by partition index. The final
-    bank covers larger indices. A tune flag adds the bucketed class from the
+/*  Partition classes use a four-bit tree banked by partition index.  The final
+    bank covers larger indices.  A tune flag adds the bucketed class from the
     previous packet.  */
 static u32 rs_cls(io * z, u32 q, u32 ch, u32 p, u32 v) {
   vb_ctx * n = z->v;
@@ -1138,7 +1148,7 @@ static u32 rs_cls(io * z, u32 q, u32 ch, u32 p, u32 v) {
   return idx - 16;
 }
 
-/*  Invariants shared by all digits of a partition. Memory rows may coincide
+/*  Invariants shared by all digits of a partition.  Memory rows may coincide
     on pass zero; neither is an independent restrict-qualified allocation.  */
 typedef struct {
   io * z;
@@ -1343,8 +1353,8 @@ static void payload(io * z, u32 mode) {
     if (z->rawpkt) return);
 }
 
-/* Probe without changing coding models. Type 1 uses the byte model for a
-   peeled packet; bit 1 adds floor class corrections and bit 2 codes a tail. */
+/*  Probe without changing coding models.  Type 1 uses the byte model for a
+    peeled packet; bit 1 adds floor class corrections and bit 2 codes a tail.  */
 static int audio_type(io * z) {
   io p = *z;
   u32 md;
@@ -1361,17 +1371,17 @@ static int audio_type(io * z) {
     (p.len * 8 - p.pos >= 8 || bget(&p, (int) (p.len * 8 - p.pos)) ? 4 : 0);
 }
 
-/* Model exceptional bytes and padding using the existing small byte-context
-   bank. Code from the current bit position, including a final partial byte. */
+/*  Model exceptional bytes and padding using the existing small byte-context
+    bank.  Code from the current bit position, including a final partial byte.  */
 static sz packet_tail(io * z) {
   u32 prev = 0;
   while (z->pos < z->len * 8) {
     int n = (int) MIN((sz) 8, z->len * 8 - z->pos), k;
     u32 val = z->enc ? bget(z, n) : 0, idx = 1;
-    u32 bank = MIN(prev >> 4, VB_CBANK - 1) * VB_CSIZE;
+    u32 bank = MIN(prev >> 4, VB_TBANK - 1) * VB_TSIZE;
     for (k = n - 1; k >= 0; k--)
-      idx = idx * 2 + (u32) cbit(z, S_BULK, z->v->cmt + bank + idx,
-                                 z->v->cmtc + bank + idx, val >> k & 1);
+      idx = idx * 2 + (u32) cbit(z, S_BULK, z->v->tailp + bank + idx,
+                                 z->v->tailc + bank + idx, val >> k & 1);
     prev = idx - (1U << n);
     if (!z->enc) bput(z, n, prev);
   }

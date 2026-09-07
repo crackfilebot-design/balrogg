@@ -1,5 +1,5 @@
-/*  Build valid Ogg framing around arbitrary packet lists. Packets 0 through 2
-    are identification, comment, and setup headers. Later packets are audio.  */
+/*  Build valid Ogg framing around arbitrary packet lists.  Packets 0 through 2
+    are identification, comment, and setup headers.  Later packets are audio.  */
 
 #define FZ_TAG "ogg"
 #include "harness.h"

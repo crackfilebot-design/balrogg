@@ -10,7 +10,7 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program. If not, see <http://www.gnu.org/licenses/>.  */
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "rc.h"
 
@@ -102,7 +102,7 @@ void rc_probs_init(u16 * p, sz n) {
 }
 
 /*  Count-capped adaptation.
-    Counts select the adaptation rate but are not stored. Per-mode hot paths
+    Counts select the adaptation rate but are not stored.  Per-mode hot paths
     remain separate to avoid a branch on every bit.  */
 
 u16 rc_divt[RC_CNTMAX + 1];

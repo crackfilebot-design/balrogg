@@ -10,7 +10,7 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program. If not, see <http://www.gnu.org/licenses/>.  */
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "file.h"
 #ifdef BLR_WIN32
@@ -81,8 +81,8 @@ blr_file * bf_open(const char * path, int write) {
   return f;
 }
 
-/* Chunk streams borrow their parent's handle. Full chunks are appended once;
-   final partial chunks are sealed by their owner's finish operation. */
+/*  Chunk streams borrow their parent's handle.  Full chunks are appended once;
+    final partial chunks are sealed by their owner's finish operation.  */
 blr_file * bf_memory(const u8 * data, sz len) {
   blr_file * f = new_file(NULL, 0, len);
   f->memory = data;  return f;
@@ -140,7 +140,7 @@ void bf_dropcache(blr_file * f) {
   bf_flush(f);  drop_window(f);  free(f->buf);  f->buf = NULL;
 }
 
-/* Overlapping moves use one reusable window and the safe copy direction. */
+/*  Overlapping moves use one reusable window and the safe copy direction.  */
 void bf_move(blr_file * f, sz to, sz from, sz n) {
   u8 * b = xmalloc(MIN(n, BLR_IO_CHUNK));
   sz left = n;
@@ -165,7 +165,7 @@ void bf_flush(blr_file * f) {
           h[i + 4] = (u8) (f->used >> 8 * i));
     bf_write(f->parent, at, h, sizeof h);
     bf_write(f->parent, at + sizeof h, f->buf, f->used);
-    /* Length already includes the live window. */
+    /*  Length already includes the live window.  */
     f->len -= f->used;
     bf_extent_add(f, at + sizeof h, f->used);
     f->dirty = 0;  return;
@@ -309,7 +309,7 @@ void bf_close(blr_file * f) {
   free(f->ext);  free(f->buf);  free(f);
 }
 
-/* Small framing reads should not pull a whole payload window into RAM. */
+/*  Small framing reads should not pull a whole payload window into RAM.  */
 void bf_readmeta(blr_file * f, sz at, void * out, sz n) {
   FATAL_UNLESS(at <= f->len && n <= f->len - at && n <= BLR_IO_CHUNK,
                "invalid metadata read");

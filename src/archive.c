@@ -10,7 +10,7 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program. If not, see <http://www.gnu.org/licenses/>.  */
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "archive.h"
 
@@ -71,8 +71,8 @@ sz arc_size(const archive * a) {
   return n;
 }
 
-/* Parsed archives retain their physical order. Newly generated archives may
-   also be emitted with each logical stream's chunks grouped together. */
+/*  Parsed archives retain their physical order.  Newly generated archives may
+    also be emitted with each logical stream's chunks grouped together.  */
 static int chunk_next(const archive * a, sz * index, arc_chunk * q) {
   sz i, at = *index;
   if (a->nchunks) {

@@ -23,7 +23,7 @@ AM_CPPFLAGS = $(BLR_WIN_CPPFLAGS) $(BLR_DOS_CPPFLAGS) -I$(top_builddir) \
 bin_PROGRAMS = balrogg
 dist_man1_MANS = balrogg.1
 noinst_HEADERS = \
-  src/common.h src/map.h src/file.h src/rc.h src/model.h src/cm.h src/archive.h src/ogg.h \
+  src/comment.h src/common.h src/map.h src/file.h src/rc.h src/model.h src/cm.h src/archive.h src/ogg.h \
   src/vorbis.h src/residue.h src/codec.h src/opusmode.h src/opusent.h src/prof.h \
   src/cpu.h src/yarg.h src/win32.h \
   src/opus/opusdec.h src/opus/celt.h src/opus/silk.h src/opus/arch.h \
@@ -35,7 +35,7 @@ noinst_HEADERS = \
 noinst_LIBRARIES = libbalrogg_core.a
 
 libbalrogg_core_a_SOURCES = \
-  src/common.c src/map.c src/file.c src/rc.c src/archive.c src/model.c src/ogg.c src/vorbis.c \
+  src/comment.c src/common.c src/map.c src/file.c src/rc.c src/archive.c src/model.c src/ogg.c src/vorbis.c \
   src/codec.c src/cm.c src/cmmix.c src/cpu.c
 if BLR_IS_WINDOWS
 libbalrogg_core_a_SOURCES += src/win32.c
@@ -139,7 +139,7 @@ check_PROGRAMS = tests/t_suite
 TESTS = tests/t_suite
 
 tests_t_suite_SOURCES = tests/t_suite.c tests/t_harness.c tests/t_unit.c \
-                        tests/t_layers.c tests/t_files.c tests/t_cli.c
+                        tests/t_layers.c tests/t_files.c tests/t_cli.c tests/t_comments.c
 tests_t_suite_CPPFLAGS = $(AM_CPPFLAGS) -I$(top_srcdir)/tests
 tests_t_suite_LDADD = libbalrogg_core.a libbalrogg_opus.a
 if BLR_SSE2

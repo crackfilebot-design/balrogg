@@ -10,7 +10,7 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program. If not, see <http://www.gnu.org/licenses/>.  */
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 
 #include "cm.h"
@@ -190,7 +190,7 @@ void cm_free(cm * c) {
 void cm_match_push(cm * c, i32 val) {
   u32 h, p, chk;
   u8 d = (u8) ((val < -127 ? -127 : val > 127 ? 127 : val) + 128);
-  /*  Update the rolling hash. Unwritten ring entries are zero.  */
+  /*  Update the rolling hash.  Unwritten ring entries are zero.  */
   c->mhash = c->mhash * MMUL + d - c->mout * c->mbuf[(c->mpos - CM_MMIN) & MMASK];
   c->mbuf[c->mpos & MMASK] = d;
   c->mpos++;

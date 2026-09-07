@@ -10,7 +10,7 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program. If not, see <http://www.gnu.org/licenses/>.  */
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "common.h"
 #include "file.h"
@@ -111,7 +111,7 @@ void blr_fatal_unless(int cond, const char * fmt, ...) {
   die(BLR_EXIT_REFUSED);
 }
 
-/*  Set RLIMIT_AS where supported. Sanitizer builds remain unrestricted.  */
+/*  Set RLIMIT_AS where supported.  Sanitizer builds remain unrestricted.  */
 
 #if defined(__has_feature)
 #if __has_feature(address_sanitizer) || __has_feature(memory_sanitizer) ||    \
@@ -172,7 +172,7 @@ void * xmalloc(sz n) {
   return p;
 }
 
-/* Zero-initialized allocation. Callers must bound the requested capacity. */
+/*  Zero-initialized allocation.  Callers must bound the requested capacity.  */
 void * xcalloc(sz n, sz size) {
   if (size && n > SIZE_MAX / size) oom(SIZE_MAX);
   void * p = calloc(n ? n : 1, size ? size : 1);

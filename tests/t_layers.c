@@ -10,7 +10,7 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program. If not, see <http://www.gnu.org/licenses/>.  */
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 /*  Round-trip each Vorbis layer with fresh models over real files.  */
 
@@ -90,7 +90,7 @@ static int parse(const char * path, parsed * f) {
     Fk(nkey, if (klen[k] == kl && !memcmp(key[k], keybuf, kl)) { dup = k;  break; });
     if (nkey >= MAXLINK) { CHECK(0, "%s: over %d links", path, MAXLINK);  free(keybuf);  return 0; }
     key[nkey] = keybuf;  klen[nkey] = kl;
-    /*  Point repeated headers to their prior setup. Zero means a new setup.  */
+    /*  Point repeated headers to their prior setup.  Zero means a new setup.  */
     kset[nkey] = dup >= 0 ? kset[dup] : nset++;
     f->pg[i].setup = dup >= 0 ? (int) kset[nkey] + 1 : 0;
     nkey++;
@@ -321,7 +321,7 @@ void xt_run_layers(void) {
     xt_section_begin("header packets");
     t_setup(*p, &f);
     xt_section_begin("audio packets");
-    /*  Exercise every mixed stage mask with matching both enabled and off. */
+    /*  Exercise every mixed stage mask with matching both enabled and off.  */
     for (level = 1; level <= 3; level++)
       for (match = 0; match <= 1; match++) t_audio(*p, &f, level, match);
     unparse(&f);

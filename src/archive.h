@@ -10,7 +10,7 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program. If not, see <http://www.gnu.org/licenses/>.  */
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #ifndef BLR_ARCHIVE_H
 #define BLR_ARCHIVE_H
@@ -18,15 +18,15 @@
 #include "common.h"
 #include "file.h"
 
-/* Header + version + flags + tune length + tune, followed by chunks.
-   Each chunk is a little-endian u32 stream ID (1-based), u32 length, and
-   payload. A zero u32 ID terminates the archive. All but the last chunk of
-   each stream are 1 MiB. Coders and probability models span chunk boundaries. */
+/*  Header + version + flags + tune length + tune, followed by chunks.
+    Each chunk is a little-endian u32 stream ID (1-based), u32 length, and
+    payload.  A zero u32 ID terminates the archive.  All but the last chunk of
+    each stream are 1 MiB.  Coders and probability models span chunk boundaries.  */
 #define ARC_MAGIC     "BALROGG"
 #define ARC_MAGLEN    (sizeof ARC_MAGIC - 1)
 #define ARC_HDRLEN    (ARC_MAGLEN + 2)
-#define ARC_VER       1             /*  modeled exceptional codec syntax  */
-#define ARC_TUNEMAX   8
+#define ARC_VER       1             /*  unchanged during pre-2.0 development  */
+#define ARC_TUNEMAX   3
 
 /*  Flags hold pool size in bits 0 through 2, solid mode in bit 3, Opus mode in
     bit 4, and codec effort in bits 5 through 7.  */
@@ -46,14 +46,14 @@ typedef struct {
 typedef struct { u32 stream;  sz off, len; } arc_chunk;
 
 typedef struct {
-  u8 version;                 /* current format; other versions are rejected */
+  u8 version;                 /*  current format; other versions are rejected  */
   u8 flags;
   u8 tune[ARC_TUNEMAX];
-  u8 ntune;                   /* zero means default tune */
+  u8 ntune;                   /*  zero means default tune  */
   arc_stream * s;
   sz n, cap;
-  blr_file * backing;         /* owned memory view, if any */
-  blr_file * output;          /* borrowed direct output */
+  blr_file * backing;         /*  owned memory view, if any  */
+  blr_file * output;          /*  borrowed direct output  */
   arc_chunk * chunks;
   sz nchunks, cchunks;
 } archive;
@@ -67,7 +67,7 @@ void arc_free(archive * a);
 void arc_push(archive * a, const u8 * data, sz len);
 /*  Append a stream, taking ownership of its allocation.  */
 void arc_take(archive * a, u8 * data, sz len);
-/* Parse without copying payloads; buf must live until arc_free. */
+/*  Parse without copying payloads; buf must live until arc_free.  */
 void arc_parse(archive * a, const u8 * buf, sz len);
 /*  Return a newly allocated image.  */
 u8 * arc_emit(const archive * a, sz * len);

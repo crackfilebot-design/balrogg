@@ -75,8 +75,9 @@ normal floor and residue compression. Classword corrections and padding are
 modeled separately. Shortened packets (packet peeling) use an adaptive byte model.
 
 Opus support is limited to one mono or stereo logical stream with channel
-mapping family 0. Packets, including OpusHead and OpusTags, are limited to 61,440
-bytes; extended frame headers and padding are supported within that limit.
+mapping family 0. Audio packets and OpusHead are limited to 61,440 bytes;
+extended frame headers and padding are supported within that limit. OpusTags
+packets may be up to 120 MiB and are processed in bounded batches.
 Chained and multichannel Opus files are refused. Refusals
 produce a diagnostic and exit status 1.
 

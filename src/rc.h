@@ -10,7 +10,7 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program. If not, see <http://www.gnu.org/licenses/>.  */
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #ifndef BLR_RC_H
 #define BLR_RC_H
@@ -181,7 +181,7 @@ static INLINE u16 rc_adapt(u16 v, u8 * c, int lim, int bit) {
 }
 
 /*  An arena model packs P(0) xor RC_PINIT in the low word and its count in
-    the high word. Zero-filled models have the initial probability.  */
+    the high word.  Zero-filled models have the initial probability.  */
 static INLINE u32 rc_packed_prob(u32 state) {
   return (state & 0xFFFF) ^ RC_PINIT;
 }

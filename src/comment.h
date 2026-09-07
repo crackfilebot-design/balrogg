@@ -12,27 +12,26 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-#ifndef BLR_WIN32_H
-#define BLR_WIN32_H
+#ifndef BLR_COMMENT_H
+#define BLR_COMMENT_H
 
 #include "common.h"
-#ifdef BLR_WIN32
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <windows.h>
 
-#ifndef BLR_WIN_LEGACY
-wchar_t * blr_win_wide(const char * s);
-char * blr_win_utf8(const wchar_t * s);
-wchar_t * blr_win_path(const char * s);
-#endif
-HANDLE blr_win_open(const char * path, DWORD access, DWORD share,
-                    DWORD creation, DWORD attrs);
-DWORD blr_win_attrs(const char * path);
-char * blr_win_image(void);
-BOOL blr_win_spawn(const char * image, const char * command,
-                    PROCESS_INFORMATION * pi);
-#endif
+#define CMT_MAXLEN (120UL * 1024 * 1024)
+
+typedef struct {
+  int enc;
+  void * input;
+  void (*read)(void * input, sz at, u8 * data, sz len);
+  void * coder;
+  int (*bit)(void * coder, u32 prob, int bit);
+  void * output;
+  void (*write)(void * output, const u8 * data, sz len);
+} cmt_io;
+
+/*  Shared, bounded-memory comment coding; len is the original packet size.
+    The decoder writes sequential batches.  Malformed comments are not
+    subject to special coding.  */
+void cmt_code(cmt_io * io, sz len, int opus);
 
 #endif

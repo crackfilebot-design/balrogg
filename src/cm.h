@@ -10,7 +10,7 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program. If not, see <http://www.gnu.org/licenses/>.  */
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #ifndef BLR_CM_H
 #define BLR_CM_H
@@ -56,7 +56,7 @@ void cm_free(cm * c);
 static INLINE void cm_bind(cm * c, rc_enc * e, rc_dec * d) { c->e = e;  c->d = d; }
 
 /*  Code one bit using a packed arena model: low word P(0) xor RC_PINIT,
-    high word count. Zero means RC_PINIT with no observations.
+    high word count.  Zero means RC_PINIT with no observations.
     `exp` is the match bit or -1.  */
 typedef int (*cm_bit_fn)(cm * restrict c, int st, int sel, u32 h,
                          u32 * restrict p, int exp, int bit);

@@ -10,9 +10,9 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program. If not, see <http://www.gnu.org/licenses/>.  */
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-/*  Round-trip whole files through both codecs. Level -9 must beat -1. Repeated
+/*  Round-trip whole files through both codecs.  Level -9 must beat -1.  Repeated
     in-process encodes also detect state that was not reset between files.  */
 
 #include "t_harness.h"
@@ -128,7 +128,7 @@ static void t_opus(void) {
 }
 
 /*  EOF may follow a complete packet without setting the final page's EOS
-    flag. Prefixing complete copies also exercises link and header replay.  */
+    flag.  Prefixing complete copies also exercises link and header replay.  */
 static void t_no_eos(void) {
   static const char * const names[] = {
     "tiny.ogg", "chain3.ogg", "chain_cont.ogg"

@@ -10,13 +10,13 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program. If not, see <http://www.gnu.org/licenses/>.  */
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "model.h"
 
 void mdl_adapt(void) { rc_adapt_init(); }
 
-/*  Lay out four context tables consecutively. The zero table begins at 0.  */
+/*  Lay out four context tables consecutively.  The zero table begins at 0.  */
 void mdl_init(model * m, const mdl_cfg * c) {
   u32 d = (u32) 1 << c->depth;
   m->c = *c;
@@ -67,7 +67,7 @@ static u32 mntbase(model * m, u32 n) {
 
 static u32 bitlen(u32 v) { return blr_ilog(v) - 1; }
 
-/*  First order codes v - m0. Second order also subtracts m1. Unsigned
+/*  First order codes v - m0.  Second order also subtracts m1.  Unsigned
     arithmetic preserves required wraparound.  */
 static u32 fwd(model * m, u32 v) {
   u32 r, t;

@@ -10,7 +10,7 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program. If not, see <http://www.gnu.org/licenses/>.  */
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "codec.h"
 #include "archive.h"
@@ -131,8 +131,8 @@ static void join_pkt(blr_file * input, const pg_t * pg, int i, int z, sz off, sz
   }
 }
 
-/* Replay complete pages in 1 MiB batches. Reading history must not force
-   a seek and writeback of the growing output window for every small page. */
+/*  Replay complete pages in 1 MiB batches.  Reading history must not force
+    a seek and writeback of the growing output window for every small page.  */
 static void replay(blr_file * o, sz off, sz len, u32 serial) {
   u8 * buf = xmalloc(BLR_IO_CHUNK);
   sz at = 0;
@@ -143,7 +143,7 @@ static void replay(blr_file * o, sz off, sz len, u32 serial) {
     while (used < take) {
       u8 * page = buf + used;
       got = ogg_parse(&q, page, take - used);
-      if (!got) break;         /* finish this page in the next batch */
+      if (!got) break;         /*  finish this page in the next batch  */
       page[14] = (u8) serial;  page[15] = (u8) (serial >> 8);
       page[16] = (u8) (serial >> 16);  page[17] = (u8) (serial >> 24);
       ogg_crc_set(page, got);
@@ -156,7 +156,7 @@ static void replay(blr_file * o, sz off, sz len, u32 serial) {
   free(buf);
 }
 
-/* Compare runs in bounded batches, ignoring serial numbers and CRCs. */
+/*  Compare runs in bounded batches, ignoring serial numbers and CRCs.  */
 static int samerun(blr_file * input, sz x, sz y, sz n) {
   u8 * a = xmalloc(MIN(n, BLR_IO_CHUNK)), * b = xmalloc(MIN(n, BLR_IO_CHUNK));
   sz at = 0;
@@ -200,7 +200,7 @@ void vb_opt_default(vb_opt * o) { o->flags = 0x09;  o->dd = o->df = 0;
                                  o->search = 0; }
 
 
-/*  Encode one link. Solid mode retains model state.  */
+/*  Encode one link.  Solid mode retains model state.  */
 static void enc_link(vb_ctx * v, ogg_hdr * h, archive * s, const pg_t * pg,
                      const lnk_t * l, int solid, blr_file * input) {
   rc_enc et, em, eb;
@@ -272,7 +272,7 @@ static void enc_link(vb_ctx * v, ogg_hdr * h, archive * s, const pg_t * pg,
   rc_enc_free(&et);  rc_enc_free(&em);  rc_enc_free(&eb);
 }
 
-/* Encode once, appending bounded interleaved chunks to the output. */
+/*  Encode once, appending bounded interleaved chunks to the output.  */
 static archive pack_once(blr_file * input, const char * in,
                          const vb_opt * o, const vb_tune * tu, blr_file * output) {
   sz len = input->len;
@@ -424,7 +424,7 @@ typedef struct {
   int total;
 } search;
 
-/*  Keep a tune if it helps. Return 0 when the budget is spent.  */
+/*  Keep a tune if it helps.  Return 0 when the budget is spent.  */
 static int trial(search * s, const vb_tune * t) {
   sz alen, start = s->output->len;
   archive arc;
@@ -437,8 +437,8 @@ static int trial(search * s, const vb_tune * t) {
   alen = arc_size(&arc);
   if (s->total > 1) blr_progress_end();
   if (!s->have || alen < s->blen) {
-    /* The candidate is already encoded. Keep it in the same output file;
-       no extra encoding pass or separate working file is needed. */
+    /*  The candidate is already encoded.  Keep it in the same output file;
+        no extra encoding pass or separate working file is needed.  */
     if (start) bf_move(s->output, 0, start, alen);
     s->have = 1;  s->blen = alen;  s->bt = *t;
   }
