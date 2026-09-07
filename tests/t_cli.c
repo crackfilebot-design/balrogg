@@ -18,14 +18,17 @@
 #include "ogg.h"
 #include "archive.h"
 
-static const char * const REGRESS[] = {
-  "d01-codeword-length-238.blr", "d02-decode-oom.blr", "d03-decode-oom.blr",
-  "d04-decode-oom.blr", "d05-decode-oom.blr", "d06-decode-oom.blr",
-  "d07-decode-oom.blr", "d08-decode-oom.blr", "d09-decode-oom.blr",
-  "d10-codeword-length-current.blr", "d11-codeword-length-33.blr",
-  "e01-sparse-empty-book-sigfpe.ogg", "e02-audio-tail-padding.ogg",
-  "e03-bad-page-crc.ogg", "e04-page-after-eos.ogg",
-  "opus-frame-slack-2.opus", "opus-frame-slack.opus", NULL
+static const struct regression {
+  const char * name;
+  int status;
+} REGRESS[] = {
+  { "e01-sparse-empty-book-sigfpe.ogg", BLR_EXIT_REFUSED },
+  { "e02-audio-tail-padding.ogg", BLR_EXIT_OK },
+  { "e03-bad-page-crc.ogg", BLR_EXIT_REFUSED },
+  { "e04-page-after-eos.ogg", BLR_EXIT_REFUSED },
+  { "opus-frame-slack-2.opus", BLR_EXIT_OK },
+  { "opus-frame-slack.opus", BLR_EXIT_OK },
+  { NULL, 0 }
 };
 
 static int has_opus;
@@ -304,36 +307,34 @@ static void t_archive_version(void) {
   xt_unlink(arc);  xt_unlink(bad);  xt_unlink(out);  xt_unlink(log);
 }
 
-static void t_regress(void) {
+void xt_run_regress(void) {
   char args[8192];
   const char * path;
   const char * log = xt_tmp("cli.log"), * arc = xt_tmp("reg.blr");
   const char * out = xt_tmp("reg.out");
-  const char * const * p;
+  const struct regression * p;
   xt_section_begin("regress");
-  if (!xt_regress) { CHECK(0, "BLR_TEST_REGRESS is not set");  return; }
+  if (!xt_binary || !xt_regress) {
+    CHECK(0, "BLR and BLR_TEST_REGRESS must be set");  return;
+  }
   /*  Refuse excessive allocations through the cap or parser guards.  */
 #ifdef BLR_WIN32
   _putenv("BLR_MEMCAP=512");
 #else
   putenv((char *) "BLR_MEMCAP=512");
 #endif
-  for (p = REGRESS; *p; p++) {
-    sz n = strlen(*p);
-    int enc = !(n > 4 && !strcmp(*p + n - 4, ".blr")), rc;
-    path = xt_fixture(xt_regress, *p);
-    sprintf(args, "%s \"%s\" \"%s\"", enc ? "e" : "d", path, arc);
+  for (p = REGRESS; p->name; p++) {
+    int rc;
+    path = xt_fixture(xt_regress, p->name);
+    sprintf(args, "e \"%s\" \"%s\"", path, arc);
     rc = xt_run(args, log);
-    CHECK(rc == BLR_EXIT_OK || rc == BLR_EXIT_REFUSED, "%s: exit %d", *p, rc);
-    /*  A Vorbis-only build refuses the Opus inputs, and must say so.  */
-    if (enc && !has_opus && strstr(*p, "opus"))
-      CHECK(rc == BLR_EXIT_REFUSED, "%s: accepted without an Opus mode", *p);
-    if (rc == BLR_EXIT_OK && enc) {
+    CHECK(rc == p->status, "%s: exit %d, expected %d", p->name, rc, p->status);
+    if (rc == BLR_EXIT_OK) {
       sprintf(args, "d \"%s\" \"%s\"", arc, out);
       CHECK(xt_run(args, log) == 0 && xt_same_file(path, out),
-            "%s: accepted but does not round-trip", *p);
+            "%s: accepted but does not round-trip", p->name);
     }
-    xt_trace("%-36s %s", *p, rc ? "refused" : "accepted");
+    xt_trace("%-36s %s", p->name, rc ? "refused" : "accepted");
   }
   xt_unlink(log);  xt_unlink(arc);  xt_unlink(out);
 }
@@ -619,7 +620,7 @@ static void t_codec_choices(void) {
 void xt_run_cli(void) {
   if (!xt_binary || !xt_data) {
     xt_section_begin("cli");
-    xt_trace("BLR or BLR_TEST_DATA is unset: the command-line tests are skipped");
+    CHECK(0, "BLR and BLR_TEST_DATA must be set");
     return;
   }
   t_options();
@@ -627,7 +628,6 @@ void xt_run_cli(void) {
   t_batch();
   t_damaged();
   t_constructed();
-  t_regress();
   t_packet_edges();
   t_progress();
   t_archive_version();

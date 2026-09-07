@@ -167,7 +167,7 @@ EXTRA_DIST = \
   tests/t_harness.h tests/data tests/regress \
   fuzz/harness.h fuzz/fuzz_dec.c fuzz/fuzz_enc.c \
   fuzz/fuzz_ogg.c fuzz/fuzz_opus.c fuzz/build.sh fuzz/run.sh \
-  fuzz/triage.sh fuzz/regress.sh fuzz/mkseeds.py fuzz/mutate.py \
+  fuzz/triage.sh fuzz/mkseeds.py fuzz/mutate.py \
   contrib/mkdata.sh contrib/normalize-ogg.py contrib/corpus-rt.sh \
   contrib/gitlog-to-changelog contrib/check-win95-pe.sh \
   contrib/check-win-pe.sh contrib/check-win-unicode.py \
@@ -177,7 +177,7 @@ EXTRA_DIST = \
 
 VENDORED = src/yarg.h src/opus
 
-.PHONY: check-full check-torture check-simd win95-check windows-check \
+.PHONY: check-full check-torture check-regress check-simd win95-check windows-check \
         print-distfiles test-programs
 
 ##  Full tests also scan BLR_TEST_CORPUS.
@@ -186,6 +186,11 @@ check-full:
 
 check-torture:
 	$(MAKE) check BLR_TEST_LEVEL=torture
+
+##  Run the same regressions included in the default suite.
+check-regress: balrogg$(EXEEXT) tests/t_suite$(EXEEXT)
+	$(AM_TESTS_ENVIRONMENT) \
+	  $(LOG_COMPILER) ./tests/t_suite$(EXEEXT) regress
 
 ##  Run the suite once per mixer kernel this host can dispatch.
 check-simd: balrogg$(EXEEXT)

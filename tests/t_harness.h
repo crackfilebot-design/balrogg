@@ -82,5 +82,6 @@ void xt_run_unit(void);
 void xt_run_layers(void);
 void xt_run_files(void);
 void xt_run_cli(void);
+void xt_run_regress(void);
 
 #endif

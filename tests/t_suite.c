@@ -33,6 +33,7 @@ int main(int argc, char ** argv) {
       else if (!strcmp(argv[i], "layers")) xt_run_layers();
       else if (!strcmp(argv[i], "files")) xt_run_files();
       else if (!strcmp(argv[i], "cli")) xt_run_cli();
+      else if (!strcmp(argv[i], "regress")) xt_run_regress();
       else { fprintf(stderr, "t_suite: unknown section %s\n", argv[i]);  return 2; }
     }
     if (picked) return xt_finish("t_suite");
@@ -41,5 +42,6 @@ int main(int argc, char ** argv) {
   xt_run_layers();
   xt_run_files();
   xt_run_cli();
+  xt_run_regress();
   return xt_finish("t_suite");
 }
