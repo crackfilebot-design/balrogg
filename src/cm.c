@@ -43,6 +43,11 @@ static void cm_init(void) {
     cm_bit = cm_bit_sse2;  cm_plain = cm_plain_sse2;
   }
 #endif
+#if defined(HAVE_AVX2)
+  if (blr_cpu_avx2()) {
+    cm_bit = cm_bit_avx2;  cm_plain = cm_plain_avx2;
+  }
+#endif
 
   for (x = -2048; x < 2048; x++) cm_squash16[x + 2048] = (u16) cm_squash(x);
   for (x = -2047; x <= 2047; x++) {
@@ -131,6 +136,7 @@ static u32 mmul_out(void) {
 void cm_new(cm * c, int nst, int bits, int nsel, int lr, int lim) {
   int i, k;
   FATAL_UNLESS(!c->live, "internal: the context mixer is already built");
+  FATAL_UNLESS(lr >= 1 && lr <= 31, "internal: mixer learning rate %d out of range", lr);
   cm_init();
   c->nst = nst;  c->nsel = nsel;  c->lr = lr;  c->lim = lim;
   c->hmask = ((u32) 1 << bits) - 1;

@@ -12,18 +12,18 @@
     You should have received a copy of the GNU General Public License
     along with this program. If not, see <http://www.gnu.org/licenses/>.  */
 
-/*  The per-bit mixer kernel.  This file is compiled once as the portable
-    scalar kernel and, on x86 hosts, again with -msse2 and BLR_CM_SSE2 as the
-    vector kernel.  cm.c picks one at run time.  Both round identically, so
-    archives do not depend on the kernel.  */
-
 #include "cm.h"
 #include "prof.h"
 
-#if defined(BLR_CM_SSE2)
+#if defined(BLR_CM_SSE2) || defined(BLR_CM_AVX2)
 #include <emmintrin.h>
+#if defined(BLR_CM_AVX2)
+#define CM_BIT  cm_bit_avx2
+#define CM_PLAIN cm_plain_avx2
+#else
 #define CM_BIT  cm_bit_sse2
 #define CM_PLAIN cm_plain_sse2
+#endif
 
 typedef __m128i mixin;
 
@@ -36,22 +36,31 @@ static INLINE mixin mix_in6(int a, u32 bd, int e, int f) {
                             _mm_cvtsi32_si128((int) ef));
 }
 
-static INLINE i32 mix_dot(mixin t, const short * w) {
-  __m128i s = _mm_madd_epi16(t, *(const __m128i *) (const void *) w);
+static INLINE i32 mix_dot(mixin t, const short * w, int plain) {
+  __m128i weights = plain ? _mm_loadl_epi64((const __m128i *) (const void *) w)
+                         : *(const __m128i *) (const void *) w;
+  __m128i s = _mm_madd_epi16(t, weights);
   s = _mm_srai_epi32(s, 8);
-  s = _mm_add_epi32(s, _mm_srli_si128(s, 8));
+  /*  No-match inputs 4..7 are zero. Keep the per-pair shift before summing. */
+  if (!plain) s = _mm_add_epi32(s, _mm_srli_si128(s, 8));
   s = _mm_add_epi32(s, _mm_srli_si128(s, 4));
   return (i32) _mm_cvtsi128_si32(s);
 }
 
-static INLINE void mix_train(mixin t, short * w, int e) {
-  __m128i tmp;
-  if (!e) return;
-  tmp = _mm_adds_epi16(t, t);
-  tmp = _mm_mulhi_epi16(tmp, _mm_set1_epi16((short) e));
-  tmp = _mm_adds_epi16(tmp, _mm_set1_epi16(1));
+static INLINE void mix_train(mixin t, short * w, int e, int plain) {
+  __m128i tmp, twice;
+  int high = (e + 32768) >> 16;
+  twice = _mm_add_epi16(t, t);
+  tmp = _mm_mulhi_epi16(twice, _mm_set1_epi16((short) e));
+  tmp = _mm_add_epi16(tmp, _mm_mullo_epi16(twice, _mm_set1_epi16((short) high)));
+  tmp = _mm_add_epi16(tmp, _mm_set1_epi16(1));
   tmp = _mm_srai_epi16(tmp, 1);
-  *(__m128i *) (void *) w = _mm_adds_epi16(tmp, *(const __m128i *) (const void *) w);
+  /*  A zero input has a zero update; preserve the unused weights.  */
+  if (plain) {
+    tmp = _mm_adds_epi16(tmp, _mm_loadl_epi64((const __m128i *) (const void *) w));
+    _mm_storel_epi64((__m128i *) (void *) w, tmp);
+  } else
+    *(__m128i *) (void *) w = _mm_adds_epi16(tmp, *(const __m128i *) (const void *) w);
 }
 
 #else
@@ -69,18 +78,17 @@ static INLINE mixin mix_in6(int a, u32 bd, int e, int f) {
   return t;
 }
 
-static INLINE i32 mix_dot(mixin t, const short * w) {
+static INLINE i32 mix_dot(mixin t, const short * w, int plain) {
   i32 s = 0;
   int n;
-  for (n = 0; n < CM_NI; n += 2)
+  for (n = 0; n < (plain ? 4 : CM_NI); n += 2)
     s += ((i32) t.v[n] * w[n] + (i32) t.v[n + 1] * w[n + 1]) >> 8;
   return s;
 }
 
-static INLINE void mix_train(mixin t, short * w, int e) {
+static INLINE void mix_train(mixin t, short * w, int e, int plain) {
   int i;
-  if (!e) return;
-  Fi(CM_NI,
+  Fi(plain ? 4 : CM_NI,
     i32 v = w[i] + ((((i32) t.v[i] * e * 2 >> 16) + 1) >> 1);
     if (v < -32768) v = -32768;
     if (v > 32767) v = 32767;
@@ -90,7 +98,7 @@ static INLINE void mix_train(mixin t, short * w, int e) {
 
 /*  The constant exp=-1 wrapper removes matching from the plain kernel.  */
 static INLINE int mix_bit(cm * restrict c, int st, int sel, u32 h,
-                          u32 * restrict p, int exp, int bit) {
+                          u32 * restrict p, int exp, int bit, int plain) {
   /*  Refill before mixer inputs are live across a possible I/O call.  */
   if (c->d) rc_dec_norm(c->d);
   cm_stage * s = c->st + st;
@@ -119,18 +127,17 @@ static INLINE int mix_bit(cm * restrict c, int st, int sel, u32 h,
                  sg * cm_str16[c->mp[mi]],
                  sg * (int) (c->mlen < 32 ? c->mlen : 32) * 64);
   }
-  { int dot = (int) (mix_dot(in, w) >> 7);
+  { int dot = (int) (mix_dot(in, w, plain) >> 7);
     if (dot < -2047) dot = -2047;
     if (dot > 2047) dot = 2047;
-    pr = cm_squash16[dot + 2048];                       /*  P(1)  */
-  }
+    pr = cm_squash16[dot + 2048];  /*  P(1)  */  }
   if (c->d) bit = rc_dec_bit_ready(c->d, 65536u - pr);
   /*  Account for mixed bits because rc_*_bit_raw does not report them.  */
   PROF(prof_hook(NULL, 65536u - pr, bit));
   *sp = cm_nex[state][bit];
   nv = rc_adapt_prob(ps, rc_divt[x & 0xFFFF], !bit);
   *smp = cm_sm(nv, (x & 0xFFFF) + ((int) (x & 0xFFFF) < c->lim), state);
-  mix_train(in, w, ((bit << 12) - (int) (pr >> 4)) * c->lr);
+  mix_train(in, w, ((bit << 12) - (int) (pr >> 4)) * c->lr, plain);
   *p = rc_adapt_packed(model, c->lim, bit);
   if (exp >= 0) c->mp[mi] = rc_adapt(c->mp[mi], c->mpc + mi, c->lim, bit == exp);
   if (!c->d) rc_enc_bit_raw(c->e, 65536u - pr, bit);
@@ -139,10 +146,10 @@ static INLINE int mix_bit(cm * restrict c, int st, int sel, u32 h,
 
 HOT int CM_BIT(cm * restrict c, int st, int sel, u32 h, u32 * restrict p,
                int exp, int bit) {
-  return mix_bit(c, st, sel, h, p, exp, bit);
+  return mix_bit(c, st, sel, h, p, exp, bit, 0);
 }
 
 HOT int CM_PLAIN(cm * restrict c, int st, int sel, u32 h, u32 * restrict p,
                  int bit) {
-  return mix_bit(c, st, sel, h, p, -1, bit);
+  return mix_bit(c, st, sel, h, p, -1, bit, 1);
 }

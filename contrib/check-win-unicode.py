@@ -58,7 +58,9 @@ def main():
       return result.stdout + result.stderr
 
     version = run("--version")
-    assert b"sse2 dispatched" in version, version
+    assert b"sse2 dispatched" in version or b"avx2 dispatched" in version, version
+    env = dict(os.environ, BLR_SIMD="sse2")
+    assert b"sse2 dispatched" in run("--version", env=env)
     env = dict(os.environ, BLR_SIMD="scalar")
     assert b"scalar dispatched" in run("--version", env=env)
     for fixture in ("tiny.ogg", "silk_mono_16k.opus"):

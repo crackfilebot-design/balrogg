@@ -34,6 +34,10 @@ if grep -q '^#define HAVE_SSE2' "$BUILD/config.h"; then
   "${CC_CMD[@]}" "${FLAGS[@]}" -msse2 -DBLR_CM_SSE2 -c -o cmmix_sse2.o "$TOP/src/cmmix.c"
   SRC+=(cmmix_sse2.o)
 fi
+if grep -q '^#define HAVE_AVX2' "$BUILD/config.h"; then
+  "${CC_CMD[@]}" "${FLAGS[@]}" -mavx2 -DBLR_CM_AVX2 -c -o cmmix_avx2.o "$TOP/src/cmmix.c"
+  SRC+=(cmmix_avx2.o)
+fi
 for t in dec enc ogg; do
   "${CC_CMD[@]}" "${FLAGS[@]}" -o "fuzz_$t" "fuzz_$t.c" "${SRC[@]}" -lm
 done

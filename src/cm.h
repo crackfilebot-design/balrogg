@@ -74,6 +74,12 @@ HOT int cm_bit_sse2(cm * restrict c, int st, int sel, u32 h, u32 * restrict p,
 HOT int cm_plain_sse2(cm * restrict c, int st, int sel, u32 h,
                       u32 * restrict p, int bit);
 #endif
+#if defined(HAVE_AVX2)
+HOT int cm_bit_avx2(cm * restrict c, int st, int sel, u32 h, u32 * restrict p,
+                    int exp, int bit);
+HOT int cm_plain_avx2(cm * restrict c, int st, int sel, u32 h,
+                      u32 * restrict p, int bit);
+#endif
 
 /*  Tables shared by both kernels.  */
 #define CM_NI 8

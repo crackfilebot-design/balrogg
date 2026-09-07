@@ -81,8 +81,8 @@ for sym in `awk '$2 == "<none>" {print $4}' "$tmp.k32"`; do
     exit 1
   fi
 done
-if grep -Eq '^#define HAVE_SSE2' "$config"; then
-  echo 'win95-check: the SSE2 mixer is compiled in' >&2
+if grep -Eq '^#define HAVE_(SSE2|AVX2)' "$config"; then
+  echo 'win95-check: a vector mixer is compiled in' >&2
   exit 1
 fi
 if test "`grep -ci 'DLL Name:' "$tmp"`" -ne 1 ||

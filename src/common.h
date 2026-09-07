@@ -21,6 +21,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -29,6 +30,15 @@ typedef uint8_t  u8;  typedef int8_t  i8;
 typedef uint16_t u16;  typedef int16_t i16;
 typedef uint32_t u32;  typedef int32_t i32;
 typedef size_t   sz;
+
+#if CHAR_BIT != 8 || SHRT_MAX != 32767 || INT_MAX != 2147483647
+#error "balrogg requires 8-bit bytes, 16-bit short, and 32-bit int"
+#endif
+#if (-1 >> 1) != -1
+#error "balrogg requires arithmetic signed right shift"
+#endif
+typedef char blr_signed_conversion_check[
+  (i32) UINT32_MAX == -1 && (i16) UINT16_MAX == -1 ? 1 : -1];
 
 /*  Hot-path hints.  */
 #if defined(__GNUC__) && !defined(BLR_NO_ATTRS)

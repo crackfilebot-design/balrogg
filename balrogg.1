@@ -147,10 +147,13 @@ Sanitizer builds omit the cap.
 .B BLR_SIMD
 Select the context-mixer kernel on x86.
 .B scalar
-forces the portable kernel and
+forces the portable kernel;
 .B sse2
-refuses to run unless the SSE2 kernel is built and the CPU supports it.
-SSE2 is the default when CPUID reports it.
+and
+.B avx2
+require the requested kernel to be built and supported by the CPU.
+AVX2 also requires OS support for saving XMM and YMM state.
+The default prefers AVX2, then SSE2, then the scalar kernel.
 .SH LIMITS
 Input and output must be seekable.
 .PP

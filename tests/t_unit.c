@@ -349,9 +349,29 @@ static void t_model(void) {
     rc_enc_free(&e);  mdl_free(&me);  mdl_free(&md));
 }
 
+static void t_training_direction(cm_plain_fn kernel, const char * name) {
+  static const int rates[] = { 16, 17, 31 };
+  int i, bit;
+  xt_section_begin(name);
+  Fi(3, for (bit = 0; bit <= 1; bit++) {
+    cm c;
+    rc_enc e;
+    u32 model = 0;
+    memset(&c, 0, sizeof c);
+    cm_new(&c, 1, 4, 1, rates[i], 255);
+    rc_enc_init(&e);  cm_bind(&c, &e, NULL);
+    kernel(&c, 0, 0, 0, &model, bit);
+    CHECK(c.st[0].w[2] == (bit ? 8 : -8) * rates[i],
+          "rate %d, bit %d: bias weight %d, expected %d", rates[i], bit,
+          c.st[0].w[2], (bit ? 8 : -8) * rates[i]);
+    rc_enc_free(&e);  cm_free(&c);
+  });
+}
+
 /*  The no-match entry point must agree with the general kernel, including
     decoding across a refill before the mixer inputs are constructed.  */
-static void t_plain_kernel(cm_plain_fn plain, const char * name) {
+static void t_plain_kernel(cm_bit_fn reference, cm_plain_fn plain,
+                            int lr, const char * name) {
   cm a, b, c;
   rc_enc ea, eb;
   rc_dec d;
@@ -359,11 +379,17 @@ static void t_plain_kernel(cm_plain_fn plain, const char * name) {
   xt_rng r;
   u32 pa[64] = { 0 }, pb[64] = { 0 }, pc[64] = { 0 };
   sz la, lb;
-  int i, pass, same = 1, wrong = 0;
+  int i, j, pass, same = 1, wrong = 0;
   xt_section_begin(name);
+  xt_trace("learning rate %d", lr);
   memset(&a, 0, sizeof a);  memset(&b, 0, sizeof b);  memset(&c, 0, sizeof c);
-  cm_new(&a, 3, 12, 8, 7, 255);  cm_new(&b, 3, 12, 8, 7, 255);
-  cm_new(&c, 3, 12, 8, 7, 255);
+  cm_new(&a, 3, 12, 8, lr, 255);  cm_new(&b, 3, 12, 8, lr, 255);
+  cm_new(&c, 3, 12, 8, lr, 255);
+  /*  Exercise signed rounding/saturation and prove inactive weights survive
+      the four-input kernel, even when they are not initially zero.  */
+  Fi(3, Fj(8 * CM_NI,
+    static const short weights[] = { 32767, -32768, 129, -257, -1, 1, 1234, -2345 };
+    a.st[i].w[j] = b.st[i].w[j] = c.st[i].w[j] = weights[j % CM_NI]));
   rc_enc_init(&ea);  rc_enc_init(&eb);
   cm_bind(&a, &ea, NULL);  cm_bind(&b, &eb, NULL);
   for (pass = 0; pass < 2; pass++) {
@@ -374,7 +400,7 @@ static void t_plain_kernel(cm_plain_fn plain, const char * name) {
       int k = (int) xt_next(&r, 64);
       int bit = (int) ((xt_next(&r, 100) < 80) ^ (h & 1));
       if (!pass) {
-        cm_bit_scalar(&a, st, sel, h, pa + k, -1, bit);
+        reference(&a, st, sel, h, pa + k, -1, bit);
         if (plain(&b, st, sel, h, pb + k, bit) != bit) wrong++;
       } else if (plain(&c, st, sel, h, pc + k, !bit) != bit) wrong++);
     if (!pass) {
@@ -405,21 +431,19 @@ static void t_plain_kernel(cm_plain_fn plain, const char * name) {
 }
 
 /*  Both kernels must produce the same archive and model state.  */
-#if defined(HAVE_SSE2)
-static void t_kernels(void) {
+#if defined(HAVE_SSE2) || defined(HAVE_AVX2)
+static void t_kernels(cm_bit_fn reference, cm_bit_fn kernel,
+                       int lr, const char * name) {
   cm a, b;
   rc_enc ea, eb;
   xt_rng r;
   u32 pa[64], pb[64];
   sz la, lb;
   int i, same = 1;
-  xt_section_begin("mixer kernels");
-  if (!blr_cpu_sse2()) {
-    xt_trace("SSE2 unavailable; skipping kernel comparison");
-    return;
-  }
+  xt_section_begin(name);
+  xt_trace("learning rate %d", lr);
   memset(&a, 0, sizeof a);  memset(&b, 0, sizeof b);
-  cm_new(&a, 3, 12, 8, 7, 255);  cm_new(&b, 3, 12, 8, 7, 255);
+  cm_new(&a, 3, 12, 8, lr, 255);  cm_new(&b, 3, 12, 8, lr, 255);
   rc_enc_init(&ea);  rc_enc_init(&eb);
   cm_bind(&a, &ea, NULL);  cm_bind(&b, &eb, NULL);
   memset(pa, 0, sizeof pa);  memset(pb, 0, sizeof pb);
@@ -431,8 +455,9 @@ static void t_kernels(void) {
     int bit = (int) ((xt_next(&r, 100) < 80) ^ (h & 1));
     i32 v = (i32) xt_next(&r, 40) - 20;
     cm_match_push(&a, v);  cm_match_push(&b, v);
-    cm_bit_scalar(&a, st, sel, h, pa + k, exp, bit);
-    cm_bit_sse2(&b, st, sel, h, pb + k, exp, bit));
+    a.mlen = b.mlen = (u32) i % (CM_MMAX + 1);
+    reference(&a, st, sel, h, pa + k, exp, bit);
+    kernel(&b, st, sel, h, pb + k, exp, bit));
   la = rc_enc_finish(&ea);  lb = rc_enc_finish(&eb);
   CHECK(la == lb && !memcmp(rc_enc_data(&ea), rc_enc_data(&eb), la),
         "kernel output differs (%lu, %lu bytes)",
@@ -441,7 +466,8 @@ static void t_kernels(void) {
     if (memcmp(a.st[i].w, b.st[i].w, 8 * CM_NI * sizeof(short))) same = 0;
     if (memcmp(a.st[i].sm, b.st[i].sm, 256 * sizeof *a.st[i].sm)) same = 0;
     if (memcmp(a.st[i].hist, b.st[i].hist, (sz) 1 << 12)) same = 0);
-  CHECK(same, "kernel state differs");
+  CHECK(same && !memcmp(a.mp, b.mp, 3 * CM_MLB * sizeof *a.mp)
+        && !memcmp(a.mpc, b.mpc, 3 * CM_MLB), "kernel state differs");
   CHECK(!memcmp(pa, pb, sizeof pa),
         "kernel probabilities differ");
   xt_trace("kernels agree over 200000 bits, %lu coded bytes", (unsigned long) la);
@@ -451,6 +477,7 @@ static void t_kernels(void) {
 #endif
 
 void xt_run_unit(void) {
+  int lr;
   xt_seed(&rng, 20260810UL);
   t_ilog();
   t_crc();
@@ -465,9 +492,26 @@ void xt_run_unit(void) {
   blr_no_mmap = 0;
   t_chunks();
   t_model();
-  t_plain_kernel(cm_plain_scalar, "scalar no-match kernel");
+  t_training_direction(cm_plain_scalar, "scalar training direction");
 #if defined(HAVE_SSE2)
-  t_kernels();
-  if (blr_cpu_sse2()) t_plain_kernel(cm_plain_sse2, "SSE2 no-match kernel");
+  if (blr_cpu_sse2()) t_training_direction(cm_plain_sse2, "SSE2 training direction");
 #endif
+#if defined(HAVE_AVX2)
+  if (blr_cpu_avx2()) t_training_direction(cm_plain_avx2, "AVX2 training direction");
+#endif
+  for (lr = 1; lr <= 31; lr++) {
+    t_plain_kernel(cm_bit_scalar, cm_plain_scalar, lr, "scalar no-match kernel");
+#if defined(HAVE_SSE2)
+    if (blr_cpu_sse2()) {
+      t_kernels(cm_bit_scalar, cm_bit_sse2, lr, "SSE2 mixer kernel");
+      t_plain_kernel(cm_bit_scalar, cm_plain_sse2, lr, "SSE2 no-match kernel");
+    }
+#endif
+#if defined(HAVE_AVX2)
+    if (blr_cpu_avx2()) {
+      t_kernels(cm_bit_scalar, cm_bit_avx2, lr, "AVX2 mixer kernel");
+      t_plain_kernel(cm_bit_scalar, cm_plain_avx2, lr, "AVX2 no-match kernel");
+    }
+#endif
+  }
 }

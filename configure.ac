@@ -165,8 +165,6 @@ AC_SUBST([BLR_WIN_LDFLAGS])
 AC_SUBST([BLR_WIN_ENTRY])
 AM_CONDITIONAL([BLR_WIN_LEGACY], [test "x$blr_win_target" = "xwin95"])
 
-dnl  The SSE2 mixer is compiled on x86 and dispatched at run time.  DOS and
-dnl  Windows 95 do not preserve XMM state, so those builds stay scalar.
 blr_skip_simd=no
 test "x$blr_is_dos" = "xyes" && blr_skip_simd=yes
 test "x$blr_win_target" = "xwin95" && blr_skip_simd=yes
@@ -179,6 +177,7 @@ AC_ARG_ENABLE([simd],
   [test "x$enableval" = "xno" && blr_skip_simd=yes])
 
 BLR_SSE2_CFLAGS=""
+BLR_AVX2_CFLAGS=""
 if test "x$blr_skip_simd" = "xno" && test "x$blr_is_x86" = "xyes"; then
   save_CFLAGS="$CFLAGS"
   CFLAGS="$save_CFLAGS -msse2"
@@ -198,9 +197,29 @@ if test "x$blr_skip_simd" = "xno" && test "x$blr_is_x86" = "xyes"; then
      BLR_SSE2_CFLAGS="-msse2"],
     [AC_MSG_RESULT([no])])
   CFLAGS="$save_CFLAGS"
+  CFLAGS="$save_CFLAGS -mavx2"
+  AC_MSG_CHECKING([for AVX2 intrinsics and runtime probing])
+  AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+      #include <immintrin.h>
+      #include <cpuid.h>
+    ]], [[
+      __m256i a = _mm256_set1_epi16(1);
+      unsigned r[4], lo, hi;
+      a = _mm256_madd_epi16(a, a);
+      __get_cpuid_count(7, 0, r, r + 1, r + 2, r + 3);
+      __asm__ volatile ("xgetbv" : "=a" (lo), "=d" (hi) : "c" (0));
+      return _mm256_extract_epi32(a, 0) + (int) (r[1] + lo + hi);
+    ]])],
+    [AC_MSG_RESULT([yes])
+     AC_DEFINE([HAVE_AVX2], [1], [Define if the AVX2 mixer is built])
+     BLR_AVX2_CFLAGS="-mavx2"],
+    [AC_MSG_RESULT([no])])
+  CFLAGS="$save_CFLAGS"
 fi
 AC_SUBST([BLR_SSE2_CFLAGS])
 AM_CONDITIONAL([BLR_SSE2], [test "x$BLR_SSE2_CFLAGS" != "x"])
+AC_SUBST([BLR_AVX2_CFLAGS])
+AM_CONDITIONAL([BLR_AVX2], [test "x$BLR_AVX2_CFLAGS" != "x"])
 
 AX_APPEND_COMPILE_FLAGS([-Wall -Wextra -Wshadow -Wpointer-arith -Wcast-align \
   -Wwrite-strings \
@@ -263,6 +282,7 @@ AC_MSG_NOTICE([
     host          : $host
     Windows target: $blr_win_target
     SSE2 mixer    : ${BLR_SSE2_CFLAGS:-no}
+    AVX2 mixer    : ${BLR_AVX2_CFLAGS:-no}
     sanitizers    : $enable_sanitizers
     CFLAGS        : $CFLAGS
 ])

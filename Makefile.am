@@ -53,6 +53,13 @@ libbalrogg_sse2_a_CPPFLAGS = $(AM_CPPFLAGS) -DBLR_CM_SSE2
 libbalrogg_sse2_a_CFLAGS   = $(AM_CFLAGS) $(BLR_SSE2_CFLAGS)
 balrogg_LDADD += libbalrogg_sse2.a
 endif
+if BLR_AVX2
+noinst_LIBRARIES += libbalrogg_avx2.a
+libbalrogg_avx2_a_SOURCES  = src/cmmix.c
+libbalrogg_avx2_a_CPPFLAGS = $(AM_CPPFLAGS) -DBLR_CM_AVX2
+libbalrogg_avx2_a_CFLAGS   = $(AM_CFLAGS) $(BLR_AVX2_CFLAGS)
+balrogg_LDADD += libbalrogg_avx2.a
+endif
 
 ##  Native Windows: a freestanding C runtime on KERNEL32 replaces MSVCRT/UCRT.
 if BLR_IS_WINDOWS
@@ -119,6 +126,13 @@ libbalrogg_prof_sse2_a_CPPFLAGS = $(AM_CPPFLAGS) -DBLR_PROFILE -DBLR_CM_SSE2
 libbalrogg_prof_sse2_a_CFLAGS   = $(AM_CFLAGS) $(BLR_SSE2_CFLAGS)
 balrogg_prof_LDADD += libbalrogg_prof_sse2.a
 endif
+if BLR_AVX2
+noinst_LIBRARIES += libbalrogg_prof_avx2.a
+libbalrogg_prof_avx2_a_SOURCES  = src/cmmix.c
+libbalrogg_prof_avx2_a_CPPFLAGS = $(AM_CPPFLAGS) -DBLR_PROFILE -DBLR_CM_AVX2
+libbalrogg_prof_avx2_a_CFLAGS   = $(AM_CFLAGS) $(BLR_AVX2_CFLAGS)
+balrogg_prof_LDADD += libbalrogg_prof_avx2.a
+endif
 
 ##  Test suite linked to the library and built binary.
 check_PROGRAMS = tests/t_suite
@@ -130,6 +144,9 @@ tests_t_suite_CPPFLAGS = $(AM_CPPFLAGS) -I$(top_srcdir)/tests
 tests_t_suite_LDADD = libbalrogg_core.a libbalrogg_opus.a
 if BLR_SSE2
 tests_t_suite_LDADD += libbalrogg_sse2.a
+endif
+if BLR_AVX2
+tests_t_suite_LDADD += libbalrogg_avx2.a
 endif
 
 if BLR_IS_WINDOWS
@@ -195,9 +212,11 @@ check-regress: balrogg$(EXEEXT) tests/t_suite$(EXEEXT)
 ##  Run the suite once per mixer kernel this host can dispatch.
 check-simd: balrogg$(EXEEXT)
 	@tiers=scalar; \
-	if ./balrogg$(EXEEXT) --version | grep -q 'sse2 dispatched'; then \
-	  tiers="$$tiers sse2"; \
-	fi; \
+	for t in sse2 avx2; do \
+	  if BLR_SIMD=$$t ./balrogg$(EXEEXT) --version >/dev/null 2>&1; then \
+	    tiers="$$tiers $$t"; \
+	  fi; \
+	done; \
 	for t in $$tiers; do \
 	  echo "== mixer kernel $$t"; \
 	  BLR_SIMD=$$t $(MAKE) check || exit 1; \
