@@ -208,8 +208,7 @@ AX_APPEND_COMPILE_FLAGS([-Wall -Wextra -Wshadow -Wpointer-arith -Wcast-align \
   -Wno-unused-parameter -Wvla -Wformat=2 -Wundef], [BLR_WARN_CFLAGS])
 AC_SUBST([BLR_WARN_CFLAGS])
 
-AX_APPEND_COMPILE_FLAGS([-fno-strict-aliasing -fno-delete-null-pointer-checks],
-                        [BLR_HARDEN_CFLAGS])
+AX_APPEND_COMPILE_FLAGS([-fno-delete-null-pointer-checks], [BLR_HARDEN_CFLAGS])
 AC_SUBST([BLR_HARDEN_CFLAGS])
 
 AC_ARG_ENABLE([sanitizers],

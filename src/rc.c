@@ -14,10 +14,12 @@
 
 #include "rc.h"
 
+#ifdef BLR_PROFILE
 rc_hook rc_hook_fn;
 void * rc_hook_ctx;
 
 void rc_hook_set(rc_hook h, void * ctx) { rc_hook_fn = h;  rc_hook_ctx = ctx; }
+#endif
 /*  Decoder.
     Seed from up to four bytes so short streams remain valid.  */
 
@@ -46,9 +48,18 @@ void rc_dec_file(rc_dec * d, blr_file * f, sz off, sz len) {
 
 void rc_dec_free(rc_dec * d) { free(d->window);  d->window = NULL; }
 
-/*  Encoder.
-    Propagate carries forward with one cached byte and a pending 0xFF count.
+/*  Propagate carries forward with one cached byte and a pending 0xFF count.
     `carry` holds bit 32 of `low` until the next shift.  */
+NOINLINE void rc_shift(rc_enc * e) {
+  if (e->low < 0xFF000000UL || e->carry) {
+    rc_put(e, (u8) (e->cache + e->carry));
+    while (--e->pending) rc_put(e, (u8) (0xFF + e->carry));
+    e->cache = (u8) (e->low >> 24);
+    e->pending = 0;  e->carry = 0;
+  }
+  e->pending++;
+  e->low <<= 8;
+}
 
 void rc_enc_init(rc_enc * e) {
   e->low = 0;  e->range = 0xFFFFFFFFUL;  e->carry = 0;

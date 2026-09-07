@@ -1113,14 +1113,6 @@ static void cm_step(vb_ctx * v, u32 ch, u32 c, i32 val) {
   v->nxv = val;  v->npch = (int) ch;  v->nstarted = 1;
 }
 
-/*  One mixed bit: the arena slot at `off` is the caller-owned input the
-    context mixer refines, and adapts afterwards.  */
-static INLINE int pbit(io * z, u32 off, int st, int sel, u32 h, int exp,
-                       int b) {
-  vb_ctx * v = z->v;
-  return cm_bit(&v->cm, st, sel, h, v->ar + off, exp, b);
-}
-
 /*  Partition classes use a four-bit tree banked by partition index. The final
     bank covers larger indices. A tune flag adds the bucketed class from the
     previous packet.  */
@@ -1146,19 +1138,63 @@ static u32 rs_cls(io * z, u32 q, u32 ch, u32 p, u32 v) {
   return idx - 16;
 }
 
-/*  Specialize only the stage masks used by CM_LEVMASK.  */
+/*  Invariants shared by all digits of a partition. Memory rows may coincide
+    on pass zero; neither is an independent restrict-qualified allocation.  */
+typedef struct {
+  io * z;
+  vb_ctx * n;
+  rc_enc * e;
+  rc_dec * d;
+  u8 * mr, * mw;
+  u32 * tab[A_NTAB - A_RZERO];
+  u32 slot;
+  int lim;
+#ifdef BLR_PROFILE
+  u32 q, pass;
+#endif
+} rs_ctx;
+
+static INLINE void rs_init(rs_ctx * s, io * z, u32 slot, u32 q, u32 pass) {
+  vb_ctx * n = z->v;
+  u32 i, mb;
+  s->z = z;
+  /*  Syntax probes never dereference the model arena or residue memory.  */
+  if (z->probe) return;
+  mb = ar_slot(n, slot);
+  s->n = n;  s->e = z->e[S_BULK];  s->d = z->d[S_BULK];
+  s->slot = slot;  s->lim = n->t.alim;
+  s->mr = n->mem + (q * AR_NPASS + (pass ? pass - 1 : 0)) * AR_MAXIDX * AR_NCH;
+  s->mw = n->mem + (q * AR_NPASS + pass) * AR_MAXIDX * AR_NCH;
+  /*  Residue number is the outermost axis of all five tables.  */
+  for (i = A_RZERO; i < A_NTAB; i++)
+    s->tab[i - A_RZERO] = n->ar + mb + n->ab[i] + q * (AR_SIZE[i] / AR_NRES);
+#ifdef BLR_PROFILE
+  s->q = q;  s->pass = pass;
+#endif
+}
+
+/*  Specialize the plain path by direction as well as the supported masks.  */
+#define RS_ENC 1
 #define RS_CM 0
-#define RS_NAME(n) rs_plain_##n
+#define RS_NAME(n) rs_plain_enc_##n
 #include "residue.h"
 
+#define RS_ENC 0
+#define RS_CM 0
+#define RS_NAME(n) rs_plain_dec_##n
+#include "residue.h"
+
+#define RS_ENC -1
 #define RS_CM 5
 #define RS_NAME(n) rs_zero_one_##n
 #include "residue.h"
 
+#define RS_ENC -1
 #define RS_CM 29
 #define RS_NAME(n) rs_no_sign_##n
 #include "residue.h"
 
+#define RS_ENC -1
 #define RS_CM 31
 #define RS_NAME(n) rs_mixed_##n
 #include "residue.h"
@@ -1166,7 +1202,10 @@ static u32 rs_cls(io * z, u32 q, u32 ch, u32 p, u32 v) {
 static void rs_part(io * z, vb_res * r, vb_book * b, u32 q, u32 pass, u32 g,
                     u32 il) {
   switch (z->v->cm_mask) {
-  case 0: rs_plain_part(z, r, b, q, pass, g, il);  break;
+  case 0:
+    if (z->enc) rs_plain_enc_part(z, r, b, q, pass, g, il);
+    else rs_plain_dec_part(z, r, b, q, pass, g, il);
+    break;
   case 5: rs_zero_one_part(z, r, b, q, pass, g, il);  break;
   case 29: rs_no_sign_part(z, r, b, q, pass, g, il);  break;
   case 31: rs_mixed_part(z, r, b, q, pass, g, il);  break;

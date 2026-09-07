@@ -65,22 +65,27 @@ u8 * rc_enc_data(rc_enc * e);
 void rc_probs_init(u16 * p, sz n);
 
 /*  Adapt by 1/(c + 3) using a capped observation count.  */
-
 #define RC_CNTMAX 255
 #define RC_ALIM   120
 
 extern u16 rc_divt[RC_CNTMAX + 1];
 void rc_adapt_init(void);
 
-/*  Optional profiling hook for modeled slots. Raw operations do not report.  */
+/*  Optional profiling hook for modeled slots.  */
+#ifdef BLR_PROFILE
 void rc_hook_set(rc_hook h, void * ctx);
+#endif
 
 /*  Per-bit operations.
     Header definitions allow inlining without LTO.  */
+#ifdef BLR_PROFILE
 extern rc_hook rc_hook_fn;
 extern void * rc_hook_ctx;
 
 #define REPORT(p, b)  if (rc_hook_fn) rc_hook_fn(rc_hook_ctx, (p), (b))
+#else
+#define REPORT(p, b)  ((void) 0)
+#endif
 
 static INLINE void rc_put(rc_enc * e, u8 b) {
   if (e->file) {
@@ -95,16 +100,7 @@ static INLINE void rc_put(rc_enc * e, u8 b) {
   e->buf[e->len++] = b;
 }
 
-static INLINE void rc_shift(rc_enc * e) {
-  if (e->low < 0xFF000000UL || e->carry) {
-    rc_put(e, (u8) (e->cache + e->carry));
-    while (--e->pending) rc_put(e, (u8) (0xFF + e->carry));
-    e->cache = (u8) (e->low >> 24);
-    e->pending = 0;  e->carry = 0;
-  }
-  e->pending++;
-  e->low <<= 8;
-}
+NOINLINE void rc_shift(rc_enc * e);
 
 static INLINE void rc_norm(rc_enc * e) {
   while (e->range < RC_TOP) { rc_shift(e);  e->range <<= 8; }
@@ -196,7 +192,8 @@ static INLINE u32 rc_adapt_packed(u32 state, int lim, int bit) {
   return (p ^ RC_PINIT) | (count + ((int) count < lim)) << 16;
 }
 
-static INLINE void rc_enc_bit_packed(rc_enc * e, u32 * p, int lim, int bit) {
+static INLINE void rc_enc_bit_packed(rc_enc * restrict e, u32 * restrict p,
+                                    int lim, int bit) {
   u32 state = *p, v = rc_packed_prob(state), split = (e->range >> 16) * v;
   REPORT(v, bit);
   if (bit) { rc_addlow(e, split);  e->range -= split; }
@@ -205,7 +202,8 @@ static INLINE void rc_enc_bit_packed(rc_enc * e, u32 * p, int lim, int bit) {
   rc_norm(e);
 }
 
-static INLINE int rc_dec_bit_packed(rc_dec * d, u32 * p, int lim) {
+static INLINE int rc_dec_bit_packed(rc_dec * restrict d, u32 * restrict p,
+                                   int lim) {
   u32 state = *p, v = rc_packed_prob(state), split;
   int bit;
   rc_dec_norm(d);
