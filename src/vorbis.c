@@ -95,7 +95,7 @@ void vb_init(vb_ctx * v) {
   v->clsm = NULL;
   memset(v->ab, 0, sizeof v->ab);  v->aglob = v->astep = 0;
   memset(&v->cm, 0, sizeof v->cm);  v->cm_mask = 0;  memset(v->nv0, 0, sizeof v->nv0);
-  memset(v->nv1, 0, sizeof v->nv1);  memset(v->nidx, 0, sizeof v->nidx);
+  memset(v->nidx, 0, sizeof v->nidx);
   memset(v->nrun, 0, sizeof v->nrun);
   v->nxv = 0;  v->npch = -1;  v->nstarted = 0;
   v->symbols = NULL;  v->nsymbols = v->csymbols = 0;  v->symfull = 0;
@@ -1109,7 +1109,7 @@ static void cm_alloc(vb_ctx * v) {
 
 /*  Remember the previous digit and channel for same-bin context.  */
 static void cm_step(vb_ctx * v, u32 ch, u32 c, i32 val) {
-  v->nv1[ch] = v->nv0[ch];  v->nv0[ch] = val;  v->nidx[ch] = c;
+  v->nv0[ch] = val;  v->nidx[ch] = c;
   v->nxv = val;  v->npch = (int) ch;  v->nstarted = 1;
 }
 

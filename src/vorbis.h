@@ -227,7 +227,7 @@ typedef struct {
   cm cm;
   u8 cm_mask;                 /*  enabled stages  */
   vb_tune t;                  /*  the searched, transmitted parameters  */
-  i32 nv0[4], nv1[4];         /*  the last two digits of each channel  */
+  i32 nv0[4];                 /*  the previous digit of each channel  */
   u32 nidx[4], nrun[4];       /*  ... their bin, and the contiguous run  */
   i32 nxv;  int npch, nstarted;   /*  the immediately preceding digit  */
   u8 ai[VB_MAXSLOT];          /*  which slot regions of it are seeded yet  */
