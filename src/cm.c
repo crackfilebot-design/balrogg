@@ -30,6 +30,7 @@ const int cm_sqt[33] = {
 };
 
 cm_bit_fn cm_bit = cm_bit_scalar;
+cm_plain_fn cm_plain = cm_plain_scalar;
 
 static void cm_init(void) {
   int x, i, j, pi = 0, st, n;
@@ -38,7 +39,9 @@ static void cm_init(void) {
   done = 1;
 
 #if defined(HAVE_SSE2)
-  if (blr_cpu_sse2()) cm_bit = cm_bit_sse2;
+  if (blr_cpu_sse2()) {
+    cm_bit = cm_bit_sse2;  cm_plain = cm_plain_sse2;
+  }
 #endif
 
   for (x = -2048; x < 2048; x++) cm_squash16[x + 2048] = (u16) cm_squash(x);

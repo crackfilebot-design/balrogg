@@ -226,8 +226,9 @@ static void t_setup(const char * path, parsed * f) {
 }
 
 /*  Round-trip audio packets through all three per-link streams.  */
-static void t_audio(const char * path, parsed * f) {
+static void t_audio(const char * path, parsed * f, int level, int match) {
   vb_ctx v;
+  vb_tune tune;
   ogg_hdr h;
   ogg_page q;
   rc_enc eb, em, et;
@@ -236,7 +237,8 @@ static void t_audio(const char * path, parsed * f) {
   u8 * img;
   int i, j, w = 0, bad = 0, na = 0;
 
-  vb_init(&v);  vb_level(&v, CM_NLEV - 1);  ogg_hdr_init(&h);
+  vb_tune_default(&tune);  tune.flags = match ? VB_TF_MATCH : 0;
+  vb_init(&v);  vb_tune_set(&v, &tune);  vb_level(&v, level);  ogg_hdr_init(&h);
   rc_enc_init(&eb);  rc_enc_init(&em);  rc_enc_init(&et);
   Fi(f->n,
     sz atp = 0;
@@ -257,7 +259,7 @@ static void t_audio(const char * path, parsed * f) {
       } else { vb_aud_enc(&v, &eb, &em, &et, pk, pl, f->pg[i].p.type & 1);  na++; }));
   blen = rc_enc_finish(&eb);  mlen = rc_enc_finish(&em);  tlen = rc_enc_finish(&et);
 
-  vb_free(&v);  vb_init(&v);  vb_level(&v, CM_NLEV - 1);
+  vb_free(&v);  vb_init(&v);  vb_tune_set(&v, &tune);  vb_level(&v, level);
   ogg_hdr_free(&h);  ogg_hdr_init(&h);
   rc_dec_init(&db, rc_enc_data(&eb), blen);
   rc_dec_init(&dm, rc_enc_data(&em), mlen);
@@ -293,7 +295,8 @@ static void t_audio(const char * path, parsed * f) {
       Fk(nb,
         if ((img[k >> 3] >> (k & 7) & 1) != (pk[k >> 3] >> (k & 7) & 1))
           { bad = i + 1;  break; })););
-  CHECK(!bad, "%s: page %d rebuilt wrong", xt_basename(path), bad - 1);
+  CHECK(!bad, "%s: page %d rebuilt wrong (level %d, match %d)",
+        xt_basename(path), bad - 1, level, match);
   xt_trace("%s: %d audio packets -> %lu + %lu + %lu bytes", xt_basename(path),
            na, (unsigned long) blen, (unsigned long) mlen, (unsigned long) tlen);
   vb_free(&v);  ogg_hdr_free(&h);
@@ -311,13 +314,16 @@ void xt_run_layers(void) {
   for (p = files; *p; p++) t_frame(*p);
   for (p = files; *p; p++) {
     parsed f;
+    int level, match;
     xt_section_begin("page headers");
     if (!parse(*p, &f)) { unparse(&f);  continue; }
     t_pages(*p, &f);
     xt_section_begin("header packets");
     t_setup(*p, &f);
     xt_section_begin("audio packets");
-    t_audio(*p, &f);
+    /*  Exercise every mixed stage mask with matching both enabled and off. */
+    for (level = 1; level <= 3; level++)
+      for (match = 0; match <= 1; match++) t_audio(*p, &f, level, match);
     unparse(&f);
   }
   xt_files_free(files);

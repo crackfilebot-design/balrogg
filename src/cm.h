@@ -61,11 +61,18 @@ static INLINE void cm_bind(cm * c, rc_enc * e, rc_dec * d) { c->e = e;  c->d = d
 typedef int (*cm_bit_fn)(cm * restrict c, int st, int sel, u32 h,
                          u32 * restrict p, int exp, int bit);
 extern cm_bit_fn cm_bit;
+typedef int (*cm_plain_fn)(cm * restrict c, int st, int sel, u32 h,
+                           u32 * restrict p, int bit);
+extern cm_plain_fn cm_plain;
 HOT int cm_bit_scalar(cm * restrict c, int st, int sel, u32 h, u32 * restrict p,
                       int exp, int bit);
+HOT int cm_plain_scalar(cm * restrict c, int st, int sel, u32 h,
+                        u32 * restrict p, int bit);
 #if defined(HAVE_SSE2)
 HOT int cm_bit_sse2(cm * restrict c, int st, int sel, u32 h, u32 * restrict p,
                     int exp, int bit);
+HOT int cm_plain_sse2(cm * restrict c, int st, int sel, u32 h,
+                      u32 * restrict p, int bit);
 #endif
 
 /*  Tables shared by both kernels.  */

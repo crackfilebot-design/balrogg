@@ -236,13 +236,18 @@ static INLINE int rc_dec_bit_ad(rc_dec * d, u16 * p, u8 * c, int lim) {
   return bit;
 }
 
-static INLINE int rc_dec_bit_raw(rc_dec * d, u32 prob) {
+/*  The caller has normalized before computing the probability.  */
+static INLINE int rc_dec_bit_ready(rc_dec * d, u32 prob) {
   u32 split;
-  rc_dec_norm(d);
   split = (d->range >> 16) * prob;
   if (d->code < split) { d->range = split;  return 0; }
   d->code -= split;  d->range -= split;
   return 1;
+}
+
+static INLINE int rc_dec_bit_raw(rc_dec * d, u32 prob) {
+  rc_dec_norm(d);
+  return rc_dec_bit_ready(d, prob);
 }
 
 #endif

@@ -1173,27 +1173,50 @@ static INLINE void rs_init(rs_ctx * s, io * z, u32 slot, u32 q, u32 pass) {
 #endif
 }
 
-/*  Specialize the plain path by direction as well as the supported masks.  */
+/*  Specialize plain coding by direction and mixed coding by match mode.  */
+#define RS_MATCH 0
 #define RS_ENC 1
 #define RS_CM 0
 #define RS_NAME(n) rs_plain_enc_##n
 #include "residue.h"
 
+#define RS_MATCH 0
 #define RS_ENC 0
 #define RS_CM 0
 #define RS_NAME(n) rs_plain_dec_##n
 #include "residue.h"
 
+#define RS_MATCH 0
+#define RS_ENC -1
+#define RS_CM 5
+#define RS_NAME(n) rs_zero_one_nomatch_##n
+#include "residue.h"
+
+#define RS_MATCH 1
 #define RS_ENC -1
 #define RS_CM 5
 #define RS_NAME(n) rs_zero_one_##n
 #include "residue.h"
 
+#define RS_MATCH 0
+#define RS_ENC -1
+#define RS_CM 29
+#define RS_NAME(n) rs_no_sign_nomatch_##n
+#include "residue.h"
+
+#define RS_MATCH 1
 #define RS_ENC -1
 #define RS_CM 29
 #define RS_NAME(n) rs_no_sign_##n
 #include "residue.h"
 
+#define RS_MATCH 0
+#define RS_ENC -1
+#define RS_CM 31
+#define RS_NAME(n) rs_mixed_nomatch_##n
+#include "residue.h"
+
+#define RS_MATCH 1
 #define RS_ENC -1
 #define RS_CM 31
 #define RS_NAME(n) rs_mixed_##n
@@ -1201,14 +1224,24 @@ static INLINE void rs_init(rs_ctx * s, io * z, u32 slot, u32 q, u32 pass) {
 
 static void rs_part(io * z, vb_res * r, vb_book * b, u32 q, u32 pass, u32 g,
                     u32 il) {
+  int match = z->v->t.flags & VB_TF_MATCH;
   switch (z->v->cm_mask) {
   case 0:
     if (z->enc) rs_plain_enc_part(z, r, b, q, pass, g, il);
     else rs_plain_dec_part(z, r, b, q, pass, g, il);
     break;
-  case 5: rs_zero_one_part(z, r, b, q, pass, g, il);  break;
-  case 29: rs_no_sign_part(z, r, b, q, pass, g, il);  break;
-  case 31: rs_mixed_part(z, r, b, q, pass, g, il);  break;
+  case 5:
+    if (match) rs_zero_one_part(z, r, b, q, pass, g, il);
+    else rs_zero_one_nomatch_part(z, r, b, q, pass, g, il);
+    break;
+  case 29:
+    if (match) rs_no_sign_part(z, r, b, q, pass, g, il);
+    else rs_no_sign_nomatch_part(z, r, b, q, pass, g, il);
+    break;
+  case 31:
+    if (match) rs_mixed_part(z, r, b, q, pass, g, il);
+    else rs_mixed_nomatch_part(z, r, b, q, pass, g, il);
+    break;
   default: FATAL("vorbis: unsupported residue stage mask");
   }
 }

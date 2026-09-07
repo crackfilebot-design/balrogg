@@ -349,6 +349,61 @@ static void t_model(void) {
     rc_enc_free(&e);  mdl_free(&me);  mdl_free(&md));
 }
 
+/*  The no-match entry point must agree with the general kernel, including
+    decoding across a refill before the mixer inputs are constructed.  */
+static void t_plain_kernel(cm_plain_fn plain, const char * name) {
+  cm a, b, c;
+  rc_enc ea, eb;
+  rc_dec d;
+  blr_file * input = NULL;
+  xt_rng r;
+  u32 pa[64] = { 0 }, pb[64] = { 0 }, pc[64] = { 0 };
+  sz la, lb;
+  int i, pass, same = 1, wrong = 0;
+  xt_section_begin(name);
+  memset(&a, 0, sizeof a);  memset(&b, 0, sizeof b);  memset(&c, 0, sizeof c);
+  cm_new(&a, 3, 12, 8, 7, 255);  cm_new(&b, 3, 12, 8, 7, 255);
+  cm_new(&c, 3, 12, 8, 7, 255);
+  rc_enc_init(&ea);  rc_enc_init(&eb);
+  cm_bind(&a, &ea, NULL);  cm_bind(&b, &eb, NULL);
+  for (pass = 0; pass < 2; pass++) {
+    xt_seed(&r, 17);
+    Fi(8192,
+      int st = (int) xt_next(&r, 3), sel = (int) xt_next(&r, 8);
+      u32 h = xt_next(&r, 3000);
+      int k = (int) xt_next(&r, 64);
+      int bit = (int) ((xt_next(&r, 100) < 80) ^ (h & 1));
+      if (!pass) {
+        cm_bit_scalar(&a, st, sel, h, pa + k, -1, bit);
+        if (plain(&b, st, sel, h, pb + k, bit) != bit) wrong++;
+      } else if (plain(&c, st, sel, h, pc + k, !bit) != bit) wrong++);
+    if (!pass) {
+      la = rc_enc_finish(&ea);  lb = rc_enc_finish(&eb);
+      CHECK(la == lb && !memcmp(rc_enc_data(&ea), rc_enc_data(&eb), la),
+            "no-match archive differs from the general kernel");
+      input = bf_memory(rc_enc_data(&eb), lb);
+      rc_dec_file(&d, input, 0, lb);
+      /*  End the initial window at the seed to force a refill in the mixer. */
+      d.avail = d.pos;
+      cm_bind(&c, NULL, &d);
+    }
+  }
+  CHECK(!wrong, "no-match kernel returned %d wrong bits", wrong);
+  CHECK(d.base > 0, "no-match decoder did not refill");
+  Fi(3,
+    if (memcmp(a.st[i].w, b.st[i].w, 8 * CM_NI * sizeof(short))
+        || memcmp(b.st[i].w, c.st[i].w, 8 * CM_NI * sizeof(short))) same = 0;
+    if (memcmp(a.st[i].sm, b.st[i].sm, 256 * sizeof *a.st[i].sm)
+        || memcmp(b.st[i].sm, c.st[i].sm, 256 * sizeof *b.st[i].sm)) same = 0;
+    if (memcmp(a.st[i].hist, b.st[i].hist, (sz) 1 << 12)
+        || memcmp(b.st[i].hist, c.st[i].hist, (sz) 1 << 12)) same = 0);
+  CHECK(same && !memcmp(pa, pb, sizeof pa) && !memcmp(pb, pc, sizeof pb),
+        "no-match kernel model states differ");
+  rc_dec_free(&d);  bf_close(input);
+  rc_enc_free(&ea);  rc_enc_free(&eb);
+  cm_free(&a);  cm_free(&b);  cm_free(&c);
+}
+
 /*  Both kernels must produce the same archive and model state.  */
 #if defined(HAVE_SSE2)
 static void t_kernels(void) {
@@ -410,7 +465,9 @@ void xt_run_unit(void) {
   blr_no_mmap = 0;
   t_chunks();
   t_model();
+  t_plain_kernel(cm_plain_scalar, "scalar no-match kernel");
 #if defined(HAVE_SSE2)
   t_kernels();
+  if (blr_cpu_sse2()) t_plain_kernel(cm_plain_sse2, "SSE2 no-match kernel");
 #endif
 }

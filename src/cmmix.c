@@ -23,6 +23,7 @@
 #if defined(BLR_CM_SSE2)
 #include <emmintrin.h>
 #define CM_BIT  cm_bit_sse2
+#define CM_PLAIN cm_plain_sse2
 
 typedef __m128i mixin;
 
@@ -55,6 +56,7 @@ static INLINE void mix_train(mixin t, short * w, int e) {
 
 #else
 #define CM_BIT  cm_bit_scalar
+#define CM_PLAIN cm_plain_scalar
 
 typedef struct { short v[CM_NI]; } mixin;
 
@@ -86,14 +88,20 @@ static INLINE void mix_train(mixin t, short * w, int e) {
 }
 #endif
 
-HOT int CM_BIT(cm * restrict c, int st, int sel, u32 h, u32 * restrict p,
-               int exp, int bit) {
+/*  The constant exp=-1 wrapper removes matching from the plain kernel.  */
+static INLINE int mix_bit(cm * restrict c, int st, int sel, u32 h,
+                          u32 * restrict p, int exp, int bit) {
+  /*  Refill before mixer inputs are live across a possible I/O call.  */
+  if (c->d) rc_dec_norm(c->d);
   cm_stage * s = c->st + st;
-  u8 * sp = s->hist + (h & c->hmask);
+  /*  cm_new allocates these buffers separately from each other, the arena
+      model, and the coder. Restrict the leaf accesses as well as c and p.  */
+  u8 * restrict sp = s->hist + (h & c->hmask);
   int state = *sp;
-  short * w = s->w + sel * CM_NI;
+  short * restrict w = s->w + sel * CM_NI;
   u32 model = *p, prob = rc_packed_prob(model);
-  uint64_t sm = s->sm[state];
+  uint64_t * restrict smp = s->sm + state;
+  uint64_t sm = *smp;
   u32 x = (u32) sm, ps = x >> 16, bd = (u32) (sm >> 32), pr, nv;
   int mi = 0;
   mixin in;
@@ -116,15 +124,25 @@ HOT int CM_BIT(cm * restrict c, int st, int sel, u32 h, u32 * restrict p,
     if (dot > 2047) dot = 2047;
     pr = cm_squash16[dot + 2048];                       /*  P(1)  */
   }
-  if (c->d) bit = rc_dec_bit_raw(c->d, 65536u - pr);
+  if (c->d) bit = rc_dec_bit_ready(c->d, 65536u - pr);
   /*  Account for mixed bits because rc_*_bit_raw does not report them.  */
   PROF(prof_hook(NULL, 65536u - pr, bit));
   *sp = cm_nex[state][bit];
   nv = rc_adapt_prob(ps, rc_divt[x & 0xFFFF], !bit);
-  s->sm[state] = cm_sm(nv, (x & 0xFFFF) + ((int) (x & 0xFFFF) < c->lim), state);
+  *smp = cm_sm(nv, (x & 0xFFFF) + ((int) (x & 0xFFFF) < c->lim), state);
   mix_train(in, w, ((bit << 12) - (int) (pr >> 4)) * c->lr);
   *p = rc_adapt_packed(model, c->lim, bit);
   if (exp >= 0) c->mp[mi] = rc_adapt(c->mp[mi], c->mpc + mi, c->lim, bit == exp);
   if (!c->d) rc_enc_bit_raw(c->e, 65536u - pr, bit);
   return bit;
+}
+
+HOT int CM_BIT(cm * restrict c, int st, int sel, u32 h, u32 * restrict p,
+               int exp, int bit) {
+  return mix_bit(c, st, sel, h, p, exp, bit);
+}
+
+HOT int CM_PLAIN(cm * restrict c, int st, int sel, u32 h, u32 * restrict p,
+                 int bit) {
+  return mix_bit(c, st, sel, h, p, -1, bit);
 }

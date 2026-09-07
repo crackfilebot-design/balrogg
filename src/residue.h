@@ -13,9 +13,21 @@
     along with this program. If not, see <http://www.gnu.org/licenses/>.  */
 
 /*  RS_CM selects mixed stages; RS_ENC is 0/1 for a fixed coding direction
-    or -1 for both. Dispatch happens outside the partition loop.  */
+    or -1 for both. RS_MATCH selects the match model. Dispatch happens outside
+    the partition loop.  */
 #define PHASH(st_) cm_hst(phb, phx, (u32) (st_))
 #define RS_ENCODING(s_) (RS_ENC < 0 ? (s_)->z->enc : RS_ENC)
+
+#if RS_CM
+static INLINE int RS_NAME(mix)(cm * c, int st, int sel, u32 h, u32 * p,
+                               int exp, int bit) {
+#if RS_MATCH
+  return cm_bit(c, st, sel, h, p, exp, bit);
+#else
+  return cm_plain(c, st, sel, h, p, bit);
+#endif
+}
+#endif
 
 #if RS_CM != 31
 static INLINE int RS_NAME(bit)(const rs_ctx * s, u32 * p, int bit) {
@@ -67,7 +79,7 @@ static HOT NOINLINE i32 RS_NAME(val)(const rs_ctx * s, u32 c, u32 ch, i32 v) {
     pslot = s->slot;
     phb = cm_hpre(pslot, ch, c, (u32) memf);
     phx = cm_hpx(pslot, ch, c, (u32) memf);
-    if (n->t.flags & VB_TF_MATCH) mok = cm_match(&n->cm, &pv);
+    if (RS_MATCH) mok = cm_match(&n->cm, &pv);
     if (mok) pm = (u32) (pv < 0 ? -pv : pv);
   }
 #endif
@@ -75,7 +87,7 @@ static HOT NOINLINE i32 RS_NAME(val)(const rs_ctx * s, u32 c, u32 ch, i32 v) {
   /*  Each stage expects the predicted digit's bit until one disagrees.  */
 #if RS_CM & 1
   mex = mok ? pv != 0 : -1;
-  t = cm_bit(&n->cm, 0, psel, PHASH(0), o, mex, v != 0);
+  t = RS_NAME(mix)(&n->cm, 0, psel, PHASH(0), o, mex, v != 0);
 #else
   t = RS_NAME(bit)(s, o, v != 0);
 #endif
@@ -86,7 +98,7 @@ static HOT NOINLINE i32 RS_NAME(val)(const rs_ctx * s, u32 c, u32 ch, i32 v) {
   if (!t) {
     n->fh[ch] = 0;  n->mh[ch] = 0;  *mw = 0;
 #if RS_CM
-    if (n->t.flags & VB_TF_MATCH) cm_match_push(&n->cm, 0);
+    if (RS_MATCH) cm_match_push(&n->cm, 0);
 #endif
     PROF(prof_res((int) s->slot, (int) s->q, (int) s->pass, (int) ch, c, (int) m,
                   (int) la, e_sh, e_mh, 0));
@@ -107,7 +119,7 @@ static HOT NOINLINE i32 RS_NAME(val)(const rs_ctx * s, u32 c, u32 ch, i32 v) {
   PROF(prof_site = P_RSIGN);
 #if RS_CM & 2
   mex = mok ? pv < 0 : -1;
-  sg = cm_bit(&n->cm, 1, psel, PHASH(1), o, mex, v < 0);
+  sg = RS_NAME(mix)(&n->cm, 1, psel, PHASH(1), o, mex, v < 0);
 #else
   sg = RS_NAME(bit)(s, o, v < 0);
 #endif
@@ -122,7 +134,7 @@ static HOT NOINLINE i32 RS_NAME(val)(const rs_ctx * s, u32 c, u32 ch, i32 v) {
   PROF(prof_site = P_RONE);
 #if RS_CM & 4
   mex = mok ? pm == 1 : -1;
-  t = cm_bit(&n->cm, 2, psel, PHASH(2), o, mex, mag == 1);
+  t = RS_NAME(mix)(&n->cm, 2, psel, PHASH(2), o, mex, mag == 1);
 #else
   t = RS_NAME(bit)(s, o, mag == 1);
 #endif
@@ -156,7 +168,7 @@ static HOT NOINLINE i32 RS_NAME(val)(const rs_ctx * s, u32 c, u32 ch, i32 v) {
       mex = mok ? (int) (pnb >> (k - 1) & 1) : -1;
 #endif
 #if RS_CM & 8
-      t = cm_bit(&n->cm, 3, psel, h3, o + idx, mex, (int) (nb >> (k - 1) & 1));
+      t = RS_NAME(mix)(&n->cm, 3, psel, h3, o + idx, mex, (int) (nb >> (k - 1) & 1));
 #else
       t = RS_NAME(bit)(s, o + idx, (int) (nb >> (k - 1) & 1));
 #endif
@@ -177,7 +189,7 @@ static HOT NOINLINE i32 RS_NAME(val)(const rs_ctx * s, u32 c, u32 ch, i32 v) {
     for (k = nb + 1; k > 0; k--) {
 #if RS_CM & 16
       mex = mok ? (int) (pm >> (k - 1) & 1) : -1;
-      t = cm_bit(&n->cm, 4, psel, h4, o + (a & 3), mex,
+      t = RS_NAME(mix)(&n->cm, 4, psel, h4, o + (a & 3), mex,
                  (int) (mag >> (k - 1) & 1));
       if (t != mex) mok = 0;
 #else
@@ -193,7 +205,7 @@ static HOT NOINLINE i32 RS_NAME(val)(const rs_ctx * s, u32 c, u32 ch, i32 v) {
     PROF(prof_site = P_VOTHER);
 #if RS_CM
     cm_step(n, ch, c, rv);
-    if (n->t.flags & VB_TF_MATCH) cm_match_push(&n->cm, rv);
+    if (RS_MATCH) cm_match_push(&n->cm, rv);
 #endif
     return rv; }
 }
@@ -253,6 +265,7 @@ static HOT FLATTEN void RS_NAME(part)(io * z, vb_res * r, vb_book * b, u32 q,
       RS_NAME(sym)(&s, b, g + i, 1, il);
 }
 
+#undef RS_MATCH
 #undef RS_ENCODING
 #undef RS_ENC
 #undef PHASH
