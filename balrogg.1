@@ -157,8 +157,9 @@ The default prefers AVX2, then SSE2, then the scalar kernel.
 .SH LIMITS
 Input and output must be seekable.
 .PP
-Opus mode supports one mono or stereo logical stream with channel mapping
+Opus mode supports mono and stereo logical streams with channel mapping
 family 0, with packets (including headers) up to 61,440 bytes.
+Chained Opus files are supported, and their links share the adaptive models.
 Vorbis floor type 0 and codebook lookup type 2 are unsupported.
 Pages with bad checksums are refused.
 Vorbis files without a final end-of-stream flag are supported when they end on

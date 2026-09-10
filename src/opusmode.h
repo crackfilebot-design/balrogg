@@ -17,8 +17,6 @@
 
 #include "common.h"
 
-/*  Ogg Opus mode for one channel-mapping-family-0 stream.  */
-
 /*  `lev` is the stored PVQ split depth, 0 through PVQ_LEVMAX.  */
 int opus_pack(const char * in, const char * out, int lev);
 int opus_unpack(const char * in, const char * out);

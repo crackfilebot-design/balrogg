@@ -1,5 +1,10 @@
 Release notes for balrogg. See ChangeLog for source-level changes.
 
+v1.3 (10-09-2026)
+- Support chained Ogg Opus files. Links share the adaptive models, so a
+  concatenation of many short files compresses about as well as one long
+  file instead of paying a model warm-up cost per file.
+
 v1.2 (06-09-2026)
 - Accept Vorbis files without a final end-of-stream flag when the last
   packet is complete.

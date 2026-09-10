@@ -127,6 +127,40 @@ static void t_opus(void) {
   free(arcs);  xt_files_free(files);
 }
 
+/*  Chained Opus links of differing channel counts share one archive, and the
+    result must not depend on what was encoded before.  */
+static void t_opus_chain(void) {
+  static const char * const names[] = {
+    "celt_st_128k.opus", "silk_mono_16k.opus", "hyb_mono_40k.opus"
+  };
+  const char * in = xt_tmp("chain.opus"), * arc = xt_tmp("chain.blr");
+  const char * arc2 = xt_tmp("chain2.blr"), * out = xt_tmp("chain.out");
+  u8 * joined = NULL;
+  sz total = 0;
+  long parts = 0;
+  int i;
+  xt_section_begin("chained Opus");
+  Fi(3,
+    sz n;
+    u8 * b = slurp(xt_fixture(xt_data, names[i]), &n);
+    joined = xrealloc(joined, total + n);
+    memcpy(joined + total, b, n);  total += n;  free(b);
+    CHECK(!opus_pack(xt_fixture(xt_data, names[i]), arc, 6),
+          "%s: encode failed", names[i]);
+    parts += xt_file_size(arc));
+  spew(in, joined, total);  free(joined);
+  CHECK(!opus_pack(in, arc, 6), "chained Opus encode failed");
+  CHECK(!opus_unpack(arc, out), "chained Opus decode failed");
+  CHECK(xt_same_file(in, out), "chained Opus is not lossless");
+  CHECK(!opus_pack(in, arc2, 6) && xt_same_file(arc, arc2),
+        "the chained archive depends on earlier encodes");
+  /*  These links differ in mode and channel count, so shared models need
+      not win here; homogeneous chains gain from the shared history.  */
+  xt_trace("opus chain: %ld -> %ld, separately %ld", (long) total,
+           xt_file_size(arc), parts);
+  xt_unlink(in);  xt_unlink(arc);  xt_unlink(arc2);  xt_unlink(out);
+}
+
 /*  EOF may follow a complete packet without setting the final page's EOS
     flag.  Prefixing complete copies also exercises link and header replay.  */
 static void t_no_eos(void) {
@@ -188,5 +222,6 @@ void xt_run_files(void) {
   }
   t_vorbis();
   t_opus();
+  t_opus_chain();
   t_no_eos();
 }

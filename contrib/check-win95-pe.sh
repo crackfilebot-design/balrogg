@@ -66,10 +66,11 @@ fi
 allowed=' CloseHandle CreateDirectoryA CreateFileA CreateFileMappingA CreateProcessA ExitProcess
 FlushFileBuffers FlushViewOfFile MapViewOfFile UnmapViewOfFile
 GetCommandLineA GetEnvironmentVariableA GetExitCodeProcess
+FlushConsoleInputBuffer GetConsoleMode GetConsoleScreenBufferInfo
 GetFileAttributesA GetFileInformationByHandle GetFileSize GetLastError
 GetModuleFileNameA GetProcessHeap GetStdHandle GetSystemInfo
 GlobalMemoryStatus HeapAlloc HeapFree HeapReAlloc ReadFile
-SetEndOfFile SetFilePointer SetLastError
+ReadConsoleInputA SetEndOfFile SetFilePointer SetLastError
 WaitForMultipleObjects WriteFile '
 for sym in `awk '$2 == "<none>" {print $4}' "$tmp.k32"`; do
   found=no
